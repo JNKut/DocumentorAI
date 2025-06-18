@@ -7,6 +7,7 @@ import { promises as fs } from "fs";
 import { insertDocumentSchema, insertConversationSchema, insertMessageSchema } from "@shared/schema";
 import { extractTextFromFile, chunkText, validateFileUpload } from "./services/document-processor";
 import { generateEmbeddings, generateChatResponse, findRelevantChunks } from "./services/openai";
+import { getKnowledgeBaseId } from "./services/knowledge-base";
 
 const upload = multer({ 
   dest: 'uploads/',
@@ -150,16 +151,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let relevantChunks: string[] = [];
       let aiResponse: string;
 
+      // Always use knowledge base for context
+      const knowledgeBaseId = getKnowledgeBaseId();
+      if (knowledgeBaseId) {
+        const knowledgeBase = await storage.getDocument(knowledgeBaseId);
+        if (knowledgeBase) {
+          relevantChunks = await findRelevantChunks(
+            content,
+            knowledgeBase.chunks,
+            knowledgeBase.embeddings,
+            2 // Use fewer chunks for general responses
+          );
+        }
+      }
+
+      // Also check if there's a user-specific document
       if (conversation.documentId) {
-        // Get document for context
         const document = await storage.getDocument(conversation.documentId);
         if (document) {
-          // Find relevant chunks
-          relevantChunks = await findRelevantChunks(
+          const docChunks = await findRelevantChunks(
             content,
             document.chunks,
             document.embeddings
           );
+          relevantChunks = [...relevantChunks, ...docChunks];
         }
       }
 

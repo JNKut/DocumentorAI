@@ -31,12 +31,9 @@ interface Conversation {
 
 export default function AIWidget() {
   const [isOpen, setIsOpen] = useState(false);
-  const [showTraining, setShowTraining] = useState(false);
   const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const [message, setMessage] = useState('');
-  const [trainingText, setTrainingText] = useState('');
   const [conversationId, setConversationId] = useState<number | null>(null);
-  const [documentId, setDocumentId] = useState<number | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -57,47 +54,7 @@ export default function AIWidget() {
     }
   });
 
-  // Train with text
-  const trainMutation = useMutation({
-    mutationFn: async (text: string) => {
-      // Create a text file from the training text
-      const formData = new FormData();
-      const blob = new Blob([text], { type: 'text/plain' });
-      formData.append('document', blob, 'training-data.txt');
-      
-      const res = await fetch('/api/documents', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
-      });
-      
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Training failed');
-      }
-      
-      return res.json();
-    },
-    onSuccess: (data) => {
-      setDocumentId(data.id);
-      setShowTraining(false);
-      setTrainingText('');
-      toast({
-        title: "AI trained successfully",
-        description: `Assistant has been trained on your content`,
-      });
-      
-      // Create new conversation with document
-      conversationMutation.mutate({ sessionId, documentId: data.id });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Training failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  });
+
 
   // Send message
   const sendMessageMutation = useMutation({
@@ -128,28 +85,7 @@ export default function AIWidget() {
     enabled: !!conversationId,
   });
 
-  // Get document info
-  const { data: document } = useQuery<Document>({
-    queryKey: ['/api/documents', documentId],
-    enabled: !!documentId,
-  });
 
-  // Delete document
-  const deleteDocumentMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest('DELETE', `/api/documents/${id}`);
-    },
-    onSuccess: () => {
-      setDocumentId(null);
-      setConversationId(null);
-      queryClient.removeQueries({ queryKey: ['/api/documents'] });
-      queryClient.removeQueries({ queryKey: ['/api/conversations'] });
-      toast({
-        title: "Document removed",
-        description: "Document and conversation history have been cleared",
-      });
-    }
-  });
 
   useEffect(() => {
     if (isOpen && !conversationId) {
@@ -163,10 +99,7 @@ export default function AIWidget() {
     }
   }, [messages]);
 
-  const handleTraining = () => {
-    if (!trainingText.trim()) return;
-    trainMutation.mutate(trainingText);
-  };
+
 
   const handleSendMessage = () => {
     if (!message.trim() || !conversationId) return;
@@ -214,16 +147,6 @@ export default function AIWidget() {
             <div className="flex items-center space-x-2">
               <Bot className="w-5 h-5" />
               <span className="font-medium">AI Assistant</span>
-              {!documentId && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowTraining(!showTraining)}
-                  className="text-xs text-white/80 hover:text-white hover:bg-white/20 px-2 py-1 h-auto"
-                >
-                  Train
-                </Button>
-              )}
             </div>
             <Button
               variant="ghost"
@@ -235,41 +158,7 @@ export default function AIWidget() {
             </Button>
           </div>
 
-          {/* Training Section */}
-          {showTraining && (
-            <div className="p-3 bg-blue-50 border-b border-blue-200">
-              <div className="mb-2">
-                <label className="text-xs font-medium text-blue-800 mb-1 block">
-                  Train the AI Assistant
-                </label>
-                <textarea
-                  placeholder="Enter information for the AI to learn about..."
-                  value={trainingText}
-                  onChange={(e) => setTrainingText(e.target.value)}
-                  className="w-full px-2 py-2 border border-blue-300 rounded text-xs resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  rows={3}
-                />
-              </div>
-              <div className="flex space-x-2">
-                <Button
-                  size="sm"
-                  onClick={handleTraining}
-                  disabled={!trainingText.trim() || trainMutation.isPending}
-                  className="text-xs px-3 py-1 h-auto"
-                >
-                  {trainMutation.isPending ? 'Training...' : 'Train AI'}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowTraining(false)}
-                  className="text-xs px-3 py-1 h-auto"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
+
 
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -281,10 +170,7 @@ export default function AIWidget() {
                 </div>
                 <div className="bg-gray-100 rounded-lg p-2 max-w-[80%]">
                   <p className="text-xs text-gray-700">
-                    {documentId 
-                      ? "Hi! I've been trained and I'm ready to help. What would you like to know?"
-                      : "Hi! I'm your AI assistant. Train me first or just start chatting!"
-                    }
+                    Hi! I'm your AI assistant. How can I help you today?
                   </p>
                 </div>
               </div>
