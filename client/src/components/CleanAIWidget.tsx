@@ -71,12 +71,14 @@ export default function CleanAIWidget() {
   });
 
   // Get messages - keep them fresh and persistent during session
-  const { data: messages = [], refetch: refetchMessages } = useQuery<Message[]>({
+  const { data: messages, refetch: refetchMessages } = useQuery({
     queryKey: [`/api/conversations/${conversationId}/messages`],
     enabled: !!conversationId,
     staleTime: 0,
     refetchInterval: 2000, // Refetch every 2 seconds to ensure messages stay
   });
+
+  const messageList = (messages as Message[]) || [];
 
   useEffect(() => {
     if (isOpen && !conversationId) {
@@ -121,9 +123,9 @@ export default function CleanAIWidget() {
           >
             <MessageCircle className="w-7 h-7" />
           </Button>
-          {messages && messages.length > 0 && (
+          {messageList && messageList.length > 0 && (
             <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-              {messages.length}
+              {messageList.length}
             </div>
           )}
         </div>
@@ -152,7 +154,7 @@ export default function CleanAIWidget() {
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {/* Welcome Message */}
-            {(!messages || messages.length === 0) && (
+            {(!messageList || messageList.length === 0) && (
               <div className="flex items-start space-x-2">
                 <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                   <Bot className="w-3 h-3 text-primary" />
@@ -168,7 +170,7 @@ export default function CleanAIWidget() {
 
 
             {/* Messages */}
-            {messages && messages.length > 0 && messages.map((msg: Message) => (
+            {messageList && messageList.length > 0 && messageList.map((msg: Message) => (
               <div key={msg.id} className={`flex items-start space-x-2 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                 {msg.role === 'assistant' && (
                   <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
