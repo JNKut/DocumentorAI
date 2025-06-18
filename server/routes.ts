@@ -69,7 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (req.file) {
         await fs.unlink(req.file.path).catch(() => {});
       }
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 

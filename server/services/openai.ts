@@ -14,7 +14,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 
     return response.data.map(item => item.embedding);
   } catch (error) {
-    throw new Error(`Failed to generate embeddings: ${error.message}`);
+    throw new Error(`Failed to generate embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -29,7 +29,7 @@ export async function generateChatResponse(
       : '';
 
     const systemPrompt = `You are an AI assistant that answers questions based on uploaded documents. 
-${contextText ? 'Use the provided context to answer questions accurately. If the context doesn't contain relevant information, say so clearly.' : 'No documents have been uploaded yet. Let the user know they need to upload a document first to get contextual answers.'}
+${contextText ? 'Use the provided context to answer questions accurately. If the context doesn\'t contain relevant information, say so clearly.' : 'No documents have been uploaded yet. Let the user know they need to upload a document first to get contextual answers.'}
 Be helpful, concise, and cite specific information from the documents when possible.`;
 
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -50,7 +50,7 @@ Be helpful, concise, and cite specific information from the documents when possi
       sourceChunks: context
     };
   } catch (error) {
-    throw new Error(`Failed to generate chat response: ${error.message}`);
+    throw new Error(`Failed to generate chat response: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 

@@ -111,6 +111,7 @@ export class MemStorage implements IStorage {
     const conversation: Conversation = {
       ...insertConversation,
       id,
+      documentId: insertConversation.documentId || null,
       createdAt: new Date(),
     };
     this.conversations.set(id, conversation);
@@ -132,6 +133,8 @@ export class MemStorage implements IStorage {
     const message: Message = {
       ...insertMessage,
       id,
+      role: insertMessage.role as "user" | "assistant",
+      sourceChunks: insertMessage.sourceChunks || null,
       createdAt: new Date(),
     };
     this.messages.set(id, message);
