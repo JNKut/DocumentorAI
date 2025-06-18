@@ -25,12 +25,11 @@ export async function generateChatResponse(
 ): Promise<{ response: string; sourceChunks: string[] }> {
   try {
     const contextText = context.length > 0 
-      ? `Relevant context from uploaded documents:\n${context.join('\n\n')}\n\n`
+      ? `Relevant context from knowledge base:\n${context.join('\n\n')}\n\n`
       : '';
 
-    const systemPrompt = `You are an AI assistant that answers questions based on uploaded documents. 
-${contextText ? 'Use the provided context to answer questions accurately. If the context doesn\'t contain relevant information, say so clearly.' : 'No documents have been uploaded yet. Let the user know they need to upload a document first to get contextual answers.'}
-Be helpful, concise, and cite specific information from the documents when possible.`;
+    const systemPrompt = `You are a helpful AI assistant. ${contextText ? 'Use the provided context from the knowledge base to answer questions accurately and helpfully. Base your responses on the information provided.' : 'Answer questions to the best of your ability using general knowledge.'}
+Be professional, helpful, and concise in your responses.`;
 
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
