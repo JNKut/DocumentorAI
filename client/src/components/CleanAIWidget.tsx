@@ -163,10 +163,7 @@ export default function CleanAIWidget() {
               </div>
             )}
 
-            {/* Debug Info */}
-            <div className="text-xs text-gray-400 mb-2">
-              Messages: {messages ? messages.length : 0} | ConvID: {conversationId}
-            </div>
+
 
             {/* Messages */}
             {messages && messages.length > 0 && messages.map((msg: Message) => (
@@ -183,7 +180,6 @@ export default function CleanAIWidget() {
                     : 'bg-gray-100 text-gray-800'
                 }`}>
                   <p className="text-xs">{msg.content}</p>
-                  <p className="text-xs opacity-50 mt-1">ID: {msg.id} | {msg.role}</p>
                 </div>
 
                 {msg.role === 'user' && (
