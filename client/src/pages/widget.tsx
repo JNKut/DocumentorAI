@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import AIWidget from "@/components/AIWidget";
+import CleanAIWidget from "@/components/CleanAIWidget";
 import { Bot, Upload, MessageSquare, Zap } from "lucide-react";
 
 export default function WidgetPage() {
@@ -120,7 +120,7 @@ export default function WidgetPage() {
         </Card>
       </div>
 
-      <AIWidget />
+      <CleanAIWidget />
     </div>
   );
 }

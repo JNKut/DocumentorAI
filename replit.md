@@ -109,6 +109,7 @@ This is a full-stack web application that provides an embeddable AI chat widget 
 - June 18, 2025: Initial AI document chat widget implementation
 - June 18, 2025: Fixed widget positioning to prevent off-screen overflow with responsive constraints  
 - June 18, 2025: Complete widget redesign - simplified chat interface, better positioning on right side, removed complex document upload UI for cleaner chat experience
+- June 18, 2025: Converted from user-trainable system to built-in knowledge base - AI now uses server-side knowledge base file loaded at startup, removed user training interface
 
 ## User Preferences
 
