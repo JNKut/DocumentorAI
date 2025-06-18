@@ -112,6 +112,7 @@ This is a full-stack web application that provides an embeddable AI chat widget 
 - June 18, 2025: Converted from user-trainable system to built-in knowledge base - AI now uses server-side knowledge base file loaded at startup, removed user training interface
 - June 18, 2025: Fixed message display issues - AI responses now appear correctly in chat widget, removed debug information
 - June 18, 2025: Verified knowledge base integration - AI assistant now properly uses content from server/knowledge-base.txt to provide contextual responses about Shop Twist and Thread services
+- June 18, 2025: Configured session-based message persistence - chat messages remain visible throughout user's session without requiring reload persistence
 
 ## User Preferences
 

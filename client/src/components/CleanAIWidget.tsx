@@ -70,12 +70,12 @@ export default function CleanAIWidget() {
     }
   });
 
-  // Get messages
+  // Get messages - keep them fresh and persistent during session
   const { data: messages = [], refetch: refetchMessages } = useQuery<Message[]>({
     queryKey: [`/api/conversations/${conversationId}/messages`],
     enabled: !!conversationId,
     staleTime: 0,
-    refetchInterval: 1000, // Refetch every second
+    refetchInterval: 2000, // Refetch every 2 seconds to ensure messages stay
   });
 
   useEffect(() => {
@@ -83,6 +83,8 @@ export default function CleanAIWidget() {
       conversationMutation.mutate({ sessionId });
     }
   }, [isOpen]);
+
+
 
   useEffect(() => {
     if (messagesEndRef.current) {
