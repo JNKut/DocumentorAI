@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Widget - Embeddable</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; }
+        #embed-root { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id="embed-root"></div>
+    <script type="module">
+        // Embeddable widget initialization
+        import { createRoot } from 'react-dom/client';
+        import EmbedWidget from '/src/components/EmbedWidget.tsx';
+        
+        const root = createRoot(document.getElementById('embed-root'));
+        root.render(EmbedWidget());
+
+        // Global API for parent window
+        window.AIWidget = {
+            init: function(options = {}) {
+                console.log('AI Widget initialized with options:', options);
+                // Widget is already rendered, just configure if needed
+                if (options.apiKey) {
+                    // Store API key for later use
+                    localStorage.setItem('aiwidget_api_key', options.apiKey);
+                }
+            },
+            show: function() {
+                window.postMessage({ type: 'SHOW_WIDGET' }, '*');
+            },
+            hide: function() {
+                window.postMessage({ type: 'HIDE_WIDGET' }, '*');
+            },
+            sendMessage: function(message) {
+                window.postMessage({ type: 'SEND_MESSAGE', message }, '*');
+            }
+        };
+
+        // Listen for parent window messages
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'CONFIGURE_WIDGET') {
+                // Handle widget configuration from parent
+                console.log('Widget configured:', event.data.config);
+            }
+        });
+    </script>
+</body>
+</html>
