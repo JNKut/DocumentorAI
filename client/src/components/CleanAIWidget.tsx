@@ -52,9 +52,10 @@ export default function CleanAIWidget() {
       return res.json();
     },
     onSuccess: async (data) => {
-      // Clear cache and force immediate refetch
-      queryClient.removeQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
-      await refetchMessages();
+      // Force immediate refetch of messages
+      setTimeout(async () => {
+        await refetchMessages();
+      }, 500); // Wait 500ms for backend to process
       setMessage('');
       setIsTyping(false);
     },
@@ -73,8 +74,7 @@ export default function CleanAIWidget() {
     queryKey: ['/api/conversations', conversationId, 'messages'],
     enabled: !!conversationId,
     staleTime: 0,
-    cacheTime: 0,
-    refetchInterval: 2000, // Refetch every 2 seconds
+    refetchInterval: 1000, // Refetch every second
   });
 
   useEffect(() => {
@@ -118,7 +118,7 @@ export default function CleanAIWidget() {
           >
             <MessageCircle className="w-7 h-7" />
           </Button>
-          {messages.length > 0 && (
+          {messages && messages.length > 0 && (
             <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
               {messages.length}
             </div>
@@ -149,7 +149,7 @@ export default function CleanAIWidget() {
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {/* Welcome Message */}
-            {messages.length === 0 && (
+            {(!messages || messages.length === 0) && (
               <div className="flex items-start space-x-2">
                 <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                   <Bot className="w-3 h-3 text-primary" />
@@ -162,8 +162,13 @@ export default function CleanAIWidget() {
               </div>
             )}
 
+            {/* Debug Info */}
+            <div className="text-xs text-gray-400 mb-2">
+              Messages: {messages ? messages.length : 0} | ConvID: {conversationId}
+            </div>
+
             {/* Messages */}
-            {messages.length > 0 ? messages.map((msg) => (
+            {messages && messages.length > 0 && messages.map((msg: Message) => (
               <div key={msg.id} className={`flex items-start space-x-2 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                 {msg.role === 'assistant' && (
                   <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
@@ -177,6 +182,7 @@ export default function CleanAIWidget() {
                     : 'bg-gray-100 text-gray-800'
                 }`}>
                   <p className="text-xs">{msg.content}</p>
+                  <p className="text-xs opacity-50 mt-1">ID: {msg.id} | {msg.role}</p>
                 </div>
 
                 {msg.role === 'user' && (
@@ -185,11 +191,7 @@ export default function CleanAIWidget() {
                   </div>
                 )}
               </div>
-            )) : (
-              <div className="text-center text-gray-500 text-xs">
-                No messages yet. Send a message to start the conversation!
-              </div>
-            )}
+            ))}
 
             {/* Typing Indicator */}
             {isTyping && (
