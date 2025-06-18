@@ -53,9 +53,10 @@ export default function CleanAIWidget() {
     },
     onSuccess: async (data) => {
       // Force immediate refetch of messages
+      queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}/messages`] });
       setTimeout(async () => {
         await refetchMessages();
-      }, 500); // Wait 500ms for backend to process
+      }, 1000); // Wait 1s for backend to process AI response
       setMessage('');
       setIsTyping(false);
     },
@@ -71,7 +72,7 @@ export default function CleanAIWidget() {
 
   // Get messages
   const { data: messages = [], refetch: refetchMessages } = useQuery<Message[]>({
-    queryKey: ['/api/conversations', conversationId, 'messages'],
+    queryKey: [`/api/conversations/${conversationId}/messages`],
     enabled: !!conversationId,
     staleTime: 0,
     refetchInterval: 1000, // Refetch every second
