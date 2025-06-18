@@ -24,17 +24,19 @@ export async function generateChatResponse(
   conversationHistory: { role: "user" | "assistant"; content: string }[] = []
 ): Promise<{ response: string; sourceChunks: string[] }> {
   try {
-    const contextText = context.length > 0 
-      ? `Relevant context from knowledge base:\n${context.join('\n\n')}\n\n`
-      : '';
+    // If we have context, inject it directly into the user message
+    const enhancedMessage = context.length > 0 
+      ? `Context: ${context.join(' ')}\n\nUser question: ${message}`
+      : message;
 
-    const systemPrompt = `You are a helpful AI assistant. ${contextText ? 'Use the provided context from the knowledge base to answer questions accurately and helpfully. Base your responses on the information provided.' : 'Answer questions to the best of your ability using general knowledge.'}
-Be professional, helpful, and concise in your responses.`;
+    const systemPrompt = context.length > 0
+      ? `You are an AI assistant for Shop Twist and Thread, a custom sewing company specializing in patchwork designs on clothing. Answer questions using the provided context information. Be helpful, professional, and accurate.`
+      : 'You are a helpful AI assistant. Answer questions to the best of your ability.';
 
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
       ...conversationHistory,
-      { role: "user", content: message }
+      { role: "user", content: enhancedMessage }
     ];
 
     const response = await openai.chat.completions.create({
