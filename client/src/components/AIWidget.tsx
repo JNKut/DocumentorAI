@@ -183,20 +183,19 @@ export default function AIWidget() {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 font-sans">
+    <div className="fixed bottom-0 right-0 z-50 font-sans">
       {/* Collapsed State - Circular Button */}
       {!isOpen && (
-        <div className="relative">
+        <div className="relative m-4">
           <Button
             onClick={toggleWidget}
-            className="w-14 h-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 bg-primary hover:bg-primary/90 animate-bounce"
-            style={{ animationDuration: '2s' }}
+            className="w-16 h-16 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 bg-primary hover:bg-primary/90"
           >
-            <MessageCircle className="w-6 h-6" />
+            <MessageCircle className="w-7 h-7" />
           </Button>
           {messages.length > 0 && (
             <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
-              1
+              {messages.length}
             </div>
           )}
         </div>
@@ -204,91 +203,35 @@ export default function AIWidget() {
 
       {/* Expanded State - Chat Window */}
       {isOpen && (
-        <Card 
-          className="absolute bottom-16 left-4 w-96 h-[600px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-10rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-in fade-in-0 scale-in-95 duration-300 sm:w-[calc(100vw-2rem)] sm:h-[calc(100vh-10rem)] sm:bottom-4 sm:right-1 sm:left-1"
-        >
+        <Card className="w-80 h-96 bg-white border border-gray-300 shadow-2xl flex flex-col m-4 rounded-lg overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
           
           {/* Header */}
-          <div className="bg-primary text-white p-4 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-                <Bot className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="font-semibold">AI Assistant</h3>
-                <p className="text-xs opacity-90">Online</p>
-              </div>
+          <div className="bg-primary text-white p-3 flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Bot className="w-5 h-5" />
+              <span className="font-medium">AI Assistant</span>
             </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={toggleWidget}
-              className="w-8 h-8 hover:bg-white/20 rounded-full p-0 text-white hover:text-white"
+              className="w-6 h-6 hover:bg-white/20 rounded-full p-0 text-white hover:text-white"
             >
               <X className="w-4 h-4" />
             </Button>
           </div>
 
-          {/* Document Upload Section */}
-          <div className="p-4 border-b border-gray-100">
-            {!document && (
-              <div
-                className="bg-surface rounded-lg p-4 border-2 border-dashed border-gray-300 text-center hover:border-primary/50 transition-colors cursor-pointer"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="w-6 h-6 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600 mb-1">Drop documents here or click to upload</p>
-                <p className="text-xs text-gray-500">PDF, DOCX, TXT (Max 10MB)</p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.docx,.txt"
-                  onChange={handleFileUpload}
-                />
-              </div>
-            )}
-            
-            {/* Uploaded Document */}
-            {document && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <File className="w-4 h-4 text-red-500" />
-                  <span className="text-sm text-gray-700">{document.originalName}</span>
-                  <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded-full">
-                    Processed
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => deleteDocumentMutation.mutate(document.id)}
-                  className="text-gray-400 hover:text-red-500 p-1 h-auto"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              </div>
-            )}
-
-            {uploadMutation.isPending && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
-                <div className="text-sm text-blue-600">Processing document...</div>
-              </div>
-            )}
-          </div>
-
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ scrollbarWidth: 'thin' }}>
-            
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {/* Welcome Message */}
             {messages.length === 0 && (
-              <div className="flex items-start space-x-2 animate-in fade-in-0 duration-300">
-                <div className="w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="flex items-start space-x-2">
+                <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                   <Bot className="w-3 h-3 text-primary" />
                 </div>
-                <div className="bg-gray-100 rounded-2xl rounded-tl-md p-3 max-w-[80%]">
-                  <p className="text-sm text-gray-800">
-                    Hi! I'm your AI assistant. Upload a document to train me, then ask me anything about it.
+                <div className="bg-gray-100 rounded-lg p-2 max-w-[80%]">
+                  <p className="text-xs text-gray-700">
+                    Hi! I'm your AI assistant. Type a message to start chatting!
                   </p>
                 </div>
               </div>
@@ -296,29 +239,23 @@ export default function AIWidget() {
 
             {/* Messages */}
             {messages.map((msg) => (
-              <div key={msg.id} className={`flex items-start space-x-2 animate-in fade-in-0 duration-300 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+              <div key={msg.id} className={`flex items-start space-x-2 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                 {msg.role === 'assistant' && (
-                  <div className="w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+                  <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                     <Bot className="w-3 h-3 text-primary" />
                   </div>
                 )}
                 
-                <div className={`rounded-2xl p-3 max-w-[80%] ${
+                <div className={`rounded-lg p-2 max-w-[75%] ${
                   msg.role === 'user' 
-                    ? 'bg-primary text-white rounded-tr-md' 
-                    : 'bg-gray-100 rounded-tl-md'
+                    ? 'bg-primary text-white' 
+                    : 'bg-gray-100 text-gray-800'
                 }`}>
-                  <p className="text-sm">{msg.content}</p>
-                  {msg.sourceChunks && msg.sourceChunks.length > 0 && (
-                    <div className="mt-2 text-xs text-gray-500 flex items-center space-x-1">
-                      <File className="w-3 h-3" />
-                      <span>Source: {document?.originalName || 'document'}</span>
-                    </div>
-                  )}
+                  <p className="text-xs">{msg.content}</p>
                 </div>
 
                 {msg.role === 'user' && (
-                  <div className="w-7 h-7 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                  <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center flex-shrink-0">
                     <User className="w-3 h-3 text-gray-600" />
                   </div>
                 )}
@@ -327,15 +264,15 @@ export default function AIWidget() {
 
             {/* Typing Indicator */}
             {isTyping && (
-              <div className="flex items-start space-x-2 animate-in fade-in-0 duration-300">
-                <div className="w-7 h-7 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
+              <div className="flex items-start space-x-2">
+                <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
                   <Bot className="w-3 h-3 text-primary" />
                 </div>
-                <div className="bg-gray-100 rounded-2xl rounded-tl-md p-3">
+                <div className="bg-gray-100 rounded-lg p-2">
                   <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.1s' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                    <div className="w-1 h-1 bg-gray-400 rounded-full animate-pulse"></div>
+                    <div className="w-1 h-1 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-1 h-1 bg-gray-400 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
                   </div>
                 </div>
               </div>
@@ -345,34 +282,24 @@ export default function AIWidget() {
           </div>
 
           {/* Input Area */}
-          <div className="border-t border-gray-100 p-4">
-            <div className="flex items-end space-x-2">
-              <div className="flex-1 relative">
-                <Textarea
-                  ref={textareaRef}
-                  placeholder="Ask me anything about your document..."
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  className="resize-none pr-12 max-h-24"
-                  rows={1}
-                />
-                <Button
-                  size="sm"
-                  onClick={handleSendMessage}
-                  disabled={!message.trim() || !conversationId || sendMessageMutation.isPending}
-                  className="absolute right-2 bottom-2 w-8 h-8 p-0"
-                >
-                  <Send className="w-3 h-3" />
-                </Button>
-              </div>
-            </div>
-            <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
-              <span>Press Enter to send</span>
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span>AI Ready</span>
-              </div>
+          <div className="border-t border-gray-200 p-3">
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                placeholder="Type your message..."
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+              />
+              <Button
+                size="sm"
+                onClick={handleSendMessage}
+                disabled={!message.trim() || !conversationId || sendMessageMutation.isPending}
+                className="px-3 py-2 h-auto"
+              >
+                <Send className="w-3 h-3" />
+              </Button>
             </div>
           </div>
         </Card>
