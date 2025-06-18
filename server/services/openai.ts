@@ -26,12 +26,10 @@ export async function generateChatResponse(
   try {
     // If we have context, inject it directly into the user message
     const enhancedMessage = context.length > 0 
-      ? `Context: ${context.join(' ')}\n\nUser question: ${message}`
+      ? `Based on this information: ${context.join(' ')}\n\nQuestion: ${message}\n\nPlease answer the question using the information provided above.`
       : message;
 
-    const systemPrompt = context.length > 0
-      ? `You are an AI assistant for Shop Twist and Thread, a custom sewing company specializing in patchwork designs on clothing. Answer questions using the provided context information. Be helpful, professional, and accurate.`
-      : 'You are a helpful AI assistant. Answer questions to the best of your ability.';
+    const systemPrompt = `You are an AI assistant for Shop Twist and Thread. Always use the information provided in the user's message to answer questions. Do not say you don't have information if it's provided in the context.`;
 
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
