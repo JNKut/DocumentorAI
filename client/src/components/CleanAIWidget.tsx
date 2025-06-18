@@ -51,10 +51,10 @@ export default function CleanAIWidget() {
       const res = await apiRequest('POST', `/api/conversations/${conversationId}/messages`, { content });
       return res.json();
     },
-    onSuccess: (data) => {
-      // Force refetch messages immediately
-      queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
-      queryClient.refetchQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
+    onSuccess: async (data) => {
+      // Clear cache and force immediate refetch
+      queryClient.removeQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
+      await refetchMessages();
       setMessage('');
       setIsTyping(false);
     },
@@ -69,10 +69,12 @@ export default function CleanAIWidget() {
   });
 
   // Get messages
-  const { data: messages = [] } = useQuery<Message[]>({
+  const { data: messages = [], refetch: refetchMessages } = useQuery<Message[]>({
     queryKey: ['/api/conversations', conversationId, 'messages'],
     enabled: !!conversationId,
-    refetchInterval: 1000, // Refetch every second to get new messages
+    staleTime: 0,
+    cacheTime: 0,
+    refetchInterval: 2000, // Refetch every 2 seconds
   });
 
   useEffect(() => {
@@ -161,7 +163,7 @@ export default function CleanAIWidget() {
             )}
 
             {/* Messages */}
-            {messages.map((msg) => (
+            {messages.length > 0 ? messages.map((msg) => (
               <div key={msg.id} className={`flex items-start space-x-2 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                 {msg.role === 'assistant' && (
                   <div className="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
@@ -183,7 +185,11 @@ export default function CleanAIWidget() {
                   </div>
                 )}
               </div>
-            ))}
+            )) : (
+              <div className="text-center text-gray-500 text-xs">
+                No messages yet. Send a message to start the conversation!
+              </div>
+            )}
 
             {/* Typing Indicator */}
             {isTyping && (
