@@ -134,7 +134,7 @@ export class MemStorage implements IStorage {
       ...insertMessage,
       id,
       role: insertMessage.role as "user" | "assistant",
-      sourceChunks: insertMessage.sourceChunks || null,
+      sourceChunks: Array.isArray(insertMessage.sourceChunks) ? insertMessage.sourceChunks : null,
       createdAt: new Date(),
     };
     this.messages.set(id, message);
