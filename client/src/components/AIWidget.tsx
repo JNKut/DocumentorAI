@@ -204,7 +204,7 @@ export default function AIWidget() {
 
       {/* Expanded State - Chat Window */}
       {isOpen && (
-        <Card className="absolute bottom-16 right-0 w-96 h-[600px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-in fade-in-0 scale-in-95 duration-300 sm:w-[calc(100vw-2rem)] sm:h-[calc(100vh-8rem)] sm:bottom-4 sm:right-1 sm:left-1">
+        <Card className="absolute bottom-16 right-0 w-96 h-[600px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-10rem)] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden animate-in fade-in-0 scale-in-95 duration-300 md:w-96 md:h-[600px] sm:w-[calc(100vw-2rem)] sm:h-[calc(100vh-10rem)] sm:bottom-4 sm:right-1 sm:left-1 sm:max-w-none">
           
           {/* Header */}
           <div className="bg-primary text-white p-4 flex items-center justify-between">

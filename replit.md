@@ -104,10 +104,10 @@ This is a full-stack web application that provides an embeddable AI chat widget 
 - `OPENAI_API_KEY`: OpenAI API authentication
 - `NODE_ENV`: Environment mode (development/production)
 
-## Changelog
+## Recent Changes
 
-Changelog:
-- June 18, 2025. Initial setup
+- June 18, 2025: Initial AI document chat widget implementation
+- June 18, 2025: Fixed widget positioning to prevent off-screen overflow with responsive constraints
 
 ## User Preferences
 
