@@ -52,7 +52,9 @@ export default function CleanAIWidget() {
       return res.json();
     },
     onSuccess: (data) => {
+      // Force refetch messages immediately
       queryClient.invalidateQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
+      queryClient.refetchQueries({ queryKey: ['/api/conversations', conversationId, 'messages'] });
       setMessage('');
       setIsTyping(false);
     },
@@ -70,6 +72,7 @@ export default function CleanAIWidget() {
   const { data: messages = [] } = useQuery<Message[]>({
     queryKey: ['/api/conversations', conversationId, 'messages'],
     enabled: !!conversationId,
+    refetchInterval: 1000, // Refetch every second to get new messages
   });
 
   useEffect(() => {
