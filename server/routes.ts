@@ -153,15 +153,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Always use knowledge base for context
       const knowledgeBaseId = getKnowledgeBaseId();
+      console.log('Knowledge base ID:', knowledgeBaseId);
       if (knowledgeBaseId) {
         const knowledgeBase = await storage.getDocument(knowledgeBaseId);
+        console.log('Knowledge base found:', knowledgeBase ? 'yes' : 'no');
         if (knowledgeBase) {
+          console.log('Knowledge base chunks count:', knowledgeBase.chunks.length);
           relevantChunks = await findRelevantChunks(
             content,
             knowledgeBase.chunks,
             knowledgeBase.embeddings,
-            2 // Use fewer chunks for general responses
+            3 // Use more chunks for better context
           );
+          console.log('Relevant chunks found:', relevantChunks.length);
         }
       }
 
