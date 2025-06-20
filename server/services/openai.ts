@@ -80,9 +80,6 @@ export async function findRelevantChunks(
 
     similarities.sort((a, b) => b.similarity - a.similarity);
     
-    console.log(`Query: "${query}"`);
-    console.log('Top similarities:', similarities.slice(0, topK).map(s => ({ similarity: s.similarity, preview: s.chunk.substring(0, 100) })));
-    
     return similarities
       .slice(0, topK)
       .filter(item => item.similarity > 0.1) // Lower threshold for knowledge base
