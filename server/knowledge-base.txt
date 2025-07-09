@@ -26,35 +26,105 @@ Guidelines:
 - Keep responses relevant to the user's questions
 - Maintain appropriate conversation flow
 
-Custom Hoodie Pricing Guide:
-Letters
-BASE PRICE IS 60
-1–3 letters: $60 (included)
-4 letters: $62
-5 letters: $64
-6 letters: $66
-7 letters: $68
-8 letters: $70
-9 letters: $72
-10 letters: $74
-Each additional letter after 10: +$3 per letter
-Patches:
-1 patch is included
-Each additional patch: +$5
-Pennant Flag Options:
-Add pennant flag: +$5
-Add lace around pennant flag: +$2
-Add bow to pennant flag: +$3
-Stitching Options:
-Stitching on hood: +$5
-Stitching on pocket: +$5
-Sleeve Design:
-One design on each sleeve: +$8
-Two designs on each sleeve: +$15
-Back Design:
-Same pricing applies to all back designs
-Hoodie Type:
-Standard Gildan hoodie: included
-Premium hoodie: +$20
+SHOP TWIST AND THREAD - COMPLETE PRICING MODEL
+
+=== BASE PRICING ===
+HOODIES:
+- Standard hoodie: $60 (includes up to 3 letters + 1 patch)
+- Premium hoodie: $80 (+$20 upgrade)
+
+TANK TOPS:
+- Standard tank top: $45 (includes up to 3 letters + 1 patch)
+- Premium tank top: $60 (+$15 upgrade)
+
+T-SHIRTS:
+- Standard t-shirt: $35 (includes up to 3 letters + 1 patch)
+- Premium t-shirt: $50 (+$15 upgrade)
+
+SWEATSHIRTS:
+- Standard sweatshirt: $55 (includes up to 3 letters + 1 patch)
+- Premium sweatshirt: $75 (+$20 upgrade)
+
+=== CUSTOMIZATION PRICING ===
+
+LETTERING (applies to all garments):
+- 1-3 letters: INCLUDED in base price
+- 4 letters: +$2
+- 5 letters: +$4
+- 6 letters: +$6
+- 7 letters: +$8
+- 8 letters: +$10
+- 9 letters: +$12
+- 10 letters: +$14
+- Each letter beyond 10: +$3
+
+PATCHES:
+- First patch: INCLUDED in base price
+- Additional patches: +$5 each
+- Custom patch creation: +$15 (one-time design fee)
+
+PATCHWORK DESIGNS:
+- Simple patchwork (2-3 fabric pieces): +$8
+- Medium patchwork (4-6 fabric pieces): +$15
+- Complex patchwork (7+ fabric pieces): +$25
+- Vintage fabric upgrade: +$10
+
+PENNANT FLAGS:
+- Basic pennant flag: +$5
+- Pennant with lace trim: +$7 (+$2 for lace)
+- Pennant with bow: +$8 (+$3 for bow)
+- Pennant with both lace and bow: +$10
+
+EMBROIDERY & STITCHING:
+- Hood stitching detail: +$5
+- Pocket stitching detail: +$5
+- Collar stitching: +$4
+- Cuff stitching: +$4
+- Custom embroidery (small): +$8
+- Custom embroidery (large): +$15
+
+SLEEVE DESIGNS:
+- Single design per sleeve: +$8
+- Two designs per sleeve: +$15
+- Full sleeve patchwork: +$20
+
+BACK DESIGNS:
+- Small back design (under 6"): +$10
+- Medium back design (6-10"): +$18
+- Large back design (over 10"): +$25
+- Full back patchwork: +$35
+
+SPECIAL FEATURES:
+- Distressed/vintage look: +$8
+- Bleach effects: +$6
+- Heat-pressed vinyl lettering: +$5
+- Metallic thread details: +$7
+- Glow-in-the-dark elements: +$10
+
+=== PACKAGE DEALS ===
+STARTER PACKAGE: Any garment + up to 5 letters + 2 patches + basic patchwork = Base price + $12
+DELUXE PACKAGE: Any garment + up to 8 letters + 3 patches + medium patchwork + pennant = Base price + $28
+PREMIUM PACKAGE: Any garment + unlimited letters + 5 patches + complex patchwork + all extras = Base price + $45
+
+=== BULK DISCOUNTS ===
+- 3-5 items: 5% discount
+- 6-10 items: 10% discount
+- 11-20 items: 15% discount
+- 21+ items: 20% discount
+
+=== RUSH ORDERS ===
+- 3-day rush: +25% of total
+- 2-day rush: +50% of total
+- 1-day rush: +75% of total
+
+=== EXAMPLES ===
+Basic hoodie with name "SARAH" (5 letters):
+$60 (base) + $4 (5 letters) = $64
+
+Premium tank top with "BASEBALL" (8 letters) + team patch + pennant with bow:
+$60 (premium tank) + $10 (8 letters) + $5 (extra patch) + $8 (pennant with bow) = $83
+
+Deluxe hoodie package with "CHAMPIONS" (9 letters):
+$60 (base) + $28 (deluxe package) = $88
 
 This knowledge base serves as the foundation for the AI assistant's responses and behavior when interacting with users through the chat widget.
