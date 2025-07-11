@@ -3,10 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Widget - Embeddable</title>
+    <title>AI Chat Widget</title>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; }
-        #embed-root { width: 100vw; height: 100vh; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+        }
+        #embed-root { 
+            width: 100vw; 
+            height: 100vh; 
+            background: transparent;
+        }
     </style>
 </head>
 <body>
@@ -19,32 +28,40 @@
         const root = createRoot(document.getElementById('embed-root'));
         root.render(EmbedWidget());
 
-        // Global API for parent window
+        // Global API for parent window communication
         window.AIWidget = {
             init: function(options = {}) {
-                console.log('AI Widget initialized with options:', options);
-                // Widget is already rendered, just configure if needed
-                if (options.apiKey) {
-                    // Store API key for later use
-                    localStorage.setItem('aiwidget_api_key', options.apiKey);
+                console.log('AI Widget initialized');
+                // Post message to parent if in iframe
+                if (window.parent !== window) {
+                    window.parent.postMessage({ 
+                        type: 'WIDGET_READY', 
+                        source: 'ai-widget' 
+                    }, '*');
                 }
             },
             show: function() {
-                window.postMessage({ type: 'SHOW_WIDGET' }, '*');
+                document.body.style.display = 'block';
             },
             hide: function() {
-                window.postMessage({ type: 'HIDE_WIDGET' }, '*');
-            },
-            sendMessage: function(message) {
-                window.postMessage({ type: 'SEND_MESSAGE', message }, '*');
+                document.body.style.display = 'none';
             }
         };
 
+        // Auto-initialize when loaded
+        window.AIWidget.init();
+
         // Listen for parent window messages
         window.addEventListener('message', function(event) {
-            if (event.data.type === 'CONFIGURE_WIDGET') {
-                // Handle widget configuration from parent
-                console.log('Widget configured:', event.data.config);
+            if (event.data.source === 'parent-site') {
+                switch(event.data.type) {
+                    case 'SHOW_WIDGET':
+                        window.AIWidget.show();
+                        break;
+                    case 'HIDE_WIDGET':
+                        window.AIWidget.hide();
+                        break;
+                }
             }
         });
     </script>

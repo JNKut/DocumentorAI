@@ -16,6 +16,67 @@ const upload = multer({
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
+  // Serve widget script
+  app.get("/widget.js", async (req, res) => {
+    try {
+      const widgetScript = path.resolve(import.meta.dirname, "..", "public", "widget.js");
+      const script = await fs.readFile(widgetScript, "utf-8");
+      res.status(200).set({ "Content-Type": "application/javascript" }).end(script);
+    } catch (error) {
+      console.error('Error serving widget script:', error);
+      res.status(500).send('// Error loading widget script');
+    }
+  });
+
+  // Serve embed page - simple HTML without Vite processing
+  app.get("/embed", (req, res) => {
+    const embedHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Widget</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            overflow: hidden; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: transparent;
+        }
+        #widget-container { 
+            width: 100vw; 
+            height: 100vh; 
+            background: transparent;
+        }
+    </style>
+</head>
+<body>
+    <div id="widget-container">
+        <iframe 
+            src="/" 
+            width="100%" 
+            height="100%" 
+            style="border: none; background: transparent;"
+            title="AI Chat Interface">
+        </iframe>
+    </div>
+    <script>
+        // Widget ready notification
+        if (window.parent !== window) {
+            window.parent.postMessage({ 
+                type: 'WIDGET_READY', 
+                source: 'ai-widget' 
+            }, '*');
+        }
+    </script>
+</body>
+</html>`;
+    
+    res.status(200).set({ "Content-Type": "text/html" }).end(embedHtml);
+  });
+  
   // Upload and process document
   app.post("/api/documents", upload.single('document'), async (req, res) => {
     try {

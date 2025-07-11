@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Website - AI Widget Integration</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        p {
+            line-height: 1.6;
+            color: #666;
+        }
+        .demo-content {
+            margin: 40px 0;
+        }
+        .integration-info {
+            background: #f0f8ff;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Demo Website</h1>
+        <p>This is a test website to demonstrate the AI chat widget integration.</p>
+        
+        <div class="demo-content">
+            <h2>About Our Company</h2>
+            <p>Welcome to our demo site! This page shows how the AI chat widget can be embedded into any website.</p>
+            
+            <div class="integration-info">
+                <h3>AI Widget Integration Test</h3>
+                <p>The AI chat widget should appear in the bottom-right corner of this page. It's embedded using an iframe and can answer questions about Shop Twist and Thread's custom hoodie services and pricing.</p>
+                
+                <h4>Test Questions to Try:</h4>
+                <ul>
+                    <li>"What is the base price for a hoodie?"</li>
+                    <li>"How much for a hoodie with 5 letters, a pennant flag, and a bow?"</li>
+                    <li>"What services does your company offer?"</li>
+                    <li>"Tell me about Shop Twist and Thread"</li>
+                </ul>
+            </div>
+        </div>
+        
+        <p>The widget is responsive and will work on both desktop and mobile devices.</p>
+    </div>
+
+    <!-- AI Chat Widget Integration - Working Method -->
+    <iframe 
+        src="http://localhost:5000/" 
+        width="400" 
+        height="600"
+        style="border: none; position: fixed; bottom: 20px; right: 20px; z-index: 9999; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);"
+        title="AI Chat Widget">
+    </iframe>
+
+    <script>
+        // Listen for widget messages
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'WIDGET_READY') {
+                console.log('AI Widget is ready!');
+            }
+        });
+    </script>
+</body>
+</html>
