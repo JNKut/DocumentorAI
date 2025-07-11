@@ -55,7 +55,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 <body>
     <div id="widget-container">
         <iframe 
-            src="/" 
+            src="/widget" 
             width="100%" 
             height="100%" 
             style="border: none; background: transparent;"

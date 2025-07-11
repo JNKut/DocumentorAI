@@ -6,7 +6,7 @@ Add this iframe to any website where you want the chat widget to appear:
 
 ```html
 <iframe 
-  src="https://your-replit-app.replit.app/" 
+  src="https://your-replit-app.replit.app/widget" 
   width="400" 
   height="600"
   style="border: none; position: fixed; bottom: 20px; right: 20px; z-index: 9999; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);"
@@ -41,7 +41,7 @@ Add this script for more control:
 (function() {
   // Create iframe dynamically
   var iframe = document.createElement('iframe');
-  iframe.src = 'https://your-replit-app.replit.app/';
+  iframe.src = 'https://your-replit-app.replit.app/widget';
   iframe.style.cssText = 'border:none;position:fixed;bottom:20px;right:20px;width:400px;height:600px;z-index:9999;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.1);';
   iframe.title = 'AI Chat Widget';
   

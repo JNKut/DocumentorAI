@@ -14,7 +14,7 @@
     
     // Create iframe
     const iframe = document.createElement('iframe');
-    iframe.src = config.apiUrl + '/embed';
+    iframe.src = config.apiUrl + '/widget';
     iframe.style.cssText = `
       border: none;
       position: fixed;
