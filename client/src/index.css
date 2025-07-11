@@ -73,6 +73,16 @@
   }
 }
 
+/* Widget-only page styles */
+.widget-only-container {
+  background: white !important;
+  color: #333 !important;
+}
+
+.widget-only-container * {
+  color: inherit;
+}
+
 @keyframes scale-in {
   from {
     opacity: 0;
