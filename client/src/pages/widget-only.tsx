@@ -5,23 +5,23 @@ export default function WidgetOnlyPage() {
     <>
       <style>{`
         body { 
-          background: white !important;
+          background: transparent !important;
           margin: 0 !important;
           padding: 0 !important;
           overflow: hidden !important;
         }
         html {
-          background: white !important;
+          background: transparent !important;
         }
         #root {
-          background: white !important;
+          background: transparent !important;
         }
       `}</style>
       
-      {/* Pure white background container for widget */}
+      {/* Transparent container - only shows the widget */}
       <div 
-        className="widget-only-container w-full h-screen overflow-hidden"
-        style={{ backgroundColor: 'white', color: '#333' }}
+        className="w-full h-screen overflow-hidden"
+        style={{ backgroundColor: 'transparent' }}
       >
         <CleanAIWidget />
       </div>

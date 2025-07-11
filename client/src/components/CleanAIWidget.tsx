@@ -113,7 +113,7 @@ export default function CleanAIWidget() {
   };
 
   return (
-    <div className="fixed bottom-0 right-0 z-50 font-sans">
+    <div className="fixed bottom-0 right-0 z-50 font-sans pointer-events-auto">
       {/* Collapsed State - Circular Button */}
       {!isOpen && (
         <div className="relative m-4">

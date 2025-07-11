@@ -18,13 +18,13 @@
     iframe.style.cssText = `
       border: none;
       position: fixed;
-      ${config.position.includes('bottom') ? 'bottom: 20px;' : 'top: 20px;'}
-      ${config.position.includes('right') ? 'right: 20px;' : 'left: 20px;'}
+      ${config.position.includes('bottom') ? 'bottom: 0;' : 'top: 0;'}
+      ${config.position.includes('right') ? 'right: 0;' : 'left: 0;'}
       width: ${config.width};
       height: ${config.height};
       z-index: ${config.zIndex};
-      border-radius: 8px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      background: transparent;
+      pointer-events: none;
       transition: opacity 0.3s ease;
     `;
     iframe.title = 'AI Chat Widget';

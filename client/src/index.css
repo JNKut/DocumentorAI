@@ -75,12 +75,12 @@
 
 /* Widget-only page styles */
 .widget-only-container {
-  background: white !important;
-  color: #333 !important;
+  background: transparent !important;
 }
 
-.widget-only-container * {
-  color: inherit;
+/* Ensure widget shows properly on transparent background */
+.widget-isolated {
+  background: transparent !important;
 }
 
 @keyframes scale-in {
