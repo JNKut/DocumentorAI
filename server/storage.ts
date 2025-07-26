@@ -5,6 +5,9 @@ import {
   type Conversation, type InsertConversation,
   type Message, type InsertMessage
 } from "@shared/schema";
+import { drizzle } from 'drizzle-orm/neon-http';
+import { neon } from '@neondatabase/serverless';
+import { eq } from 'drizzle-orm';
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -134,7 +137,7 @@ export class MemStorage implements IStorage {
       ...insertMessage,
       id,
       role: insertMessage.role as "user" | "assistant",
-      sourceChunks: Array.isArray(insertMessage.sourceChunks) ? insertMessage.sourceChunks : null,
+      sourceChunks: Array.isArray(insertMessage.sourceChunks) ? insertMessage.sourceChunks as string[] : null,
       createdAt: new Date(),
     };
     this.messages.set(id, message);
@@ -142,4 +145,86 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+// Database storage implementation
+export class DatabaseStorage implements IStorage {
+  private db;
+
+  constructor() {
+    const sql = neon(process.env.DATABASE_URL!);
+    this.db = drizzle(sql);
+  }
+
+  async getUser(id: number): Promise<User | undefined> {
+    const result = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const result = await this.db.select().from(users).where(eq(users.username, username)).limit(1);
+    return result[0];
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const result = await this.db.insert(users).values(insertUser).returning();
+    return result[0];
+  }
+
+  async getDocument(id: number): Promise<Document | undefined> {
+    const result = await this.db.select().from(documents).where(eq(documents.id, id)).limit(1);
+    return result[0];
+  }
+
+  async createDocument(insertDocument: InsertDocument & { chunks: string[]; embeddings: number[][] }): Promise<Document> {
+    const result = await this.db.insert(documents).values({
+      ...insertDocument,
+      chunks: insertDocument.chunks,
+      embeddings: insertDocument.embeddings
+    }).returning();
+    return result[0];
+  }
+
+  async deleteDocument(id: number): Promise<void> {
+    await this.db.delete(documents).where(eq(documents.id, id));
+  }
+
+  async getConversation(id: number): Promise<Conversation | undefined> {
+    const result = await this.db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getConversationBySession(sessionId: string): Promise<Conversation | undefined> {
+    const result = await this.db.select().from(conversations).where(eq(conversations.sessionId, sessionId)).limit(1);
+    return result[0];
+  }
+
+  async createConversation(insertConversation: InsertConversation): Promise<Conversation> {
+    const result = await this.db.insert(conversations).values(insertConversation).returning();
+    return result[0];
+  }
+
+  async getMessage(id: number): Promise<Message | undefined> {
+    const result = await this.db.select().from(messages).where(eq(messages.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getConversationMessages(conversationId: number): Promise<Message[]> {
+    const result = await this.db.select().from(messages).where(eq(messages.conversationId, conversationId));
+    return result.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
+
+  async createMessage(insertMessage: InsertMessage): Promise<Message> {
+    const messageData: InsertMessage = {
+      content: insertMessage.content,
+      conversationId: insertMessage.conversationId,
+      role: insertMessage.role as "user" | "assistant",
+      sourceChunks: Array.isArray(insertMessage.sourceChunks) ? insertMessage.sourceChunks as string[] : null
+    };
+    const result = await this.db.insert(messages).values(messageData).returning();
+    return result[0];
+  }
+}
+
+// Use database storage in production, memory storage in development
+export const storage = process.env.NODE_ENV === 'production' 
+  ? new DatabaseStorage() 
+  : new MemStorage();

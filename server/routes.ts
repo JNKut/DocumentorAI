@@ -22,7 +22,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const widgetScript = path.resolve(import.meta.dirname, "..", "public", "widget.js");
       const script = await fs.readFile(widgetScript, "utf-8");
       res.status(200).set({ "Content-Type": "application/javascript" }).end(script);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error serving widget script:', error);
       res.status(500).send('// Error loading widget script');
     }
@@ -153,7 +153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdAt: document.createdAt
       });
 
-    } catch (error) {
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -173,7 +173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const conversation = await storage.createConversation(validatedData);
       res.json(conversation);
 
-    } catch (error) {
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -261,7 +261,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         aiMessage
       });
 
-    } catch (error) {
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -273,7 +273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const messages = await storage.getConversationMessages(conversationId);
       res.json(messages);
 
-    } catch (error) {
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
@@ -285,7 +285,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteDocument(documentId);
       res.json({ message: "Document deleted successfully" });
 
-    } catch (error) {
+    } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
