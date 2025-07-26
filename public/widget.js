@@ -24,7 +24,6 @@
       height: ${config.height};
       z-index: ${config.zIndex};
       background: transparent;
-      pointer-events: none;
       transition: opacity 0.3s ease;
     `;
     iframe.title = 'AI Chat Widget';

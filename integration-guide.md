@@ -9,12 +9,12 @@ Add this iframe to any website where you want the chat widget to appear:
   src="https://your-replit-app.replit.app/widget" 
   width="400" 
   height="600"
-  style="border: none; position: fixed; bottom: 0; right: 0; z-index: 9999; background: transparent; pointer-events: none;"
+  style="border: none; position: fixed; bottom: 0; right: 0; z-index: 9999; background: transparent;"
   title="AI Chat Widget">
 </iframe>
 ```
 
-**Note:** The widget now has a transparent background and will only show the circular chat button floating on your website. The iframe is set to `pointer-events: none` so clicks pass through to your website, except for the widget itself.
+**Note:** The widget has a transparent background and will only show the circular chat button floating on your website. The widget components are fully clickable and interactive.
 
 ## Method 2: JavaScript Widget Script (Easy)
 

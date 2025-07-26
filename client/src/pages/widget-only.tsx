@@ -20,7 +20,7 @@ export default function WidgetOnlyPage() {
       
       {/* Transparent container - only shows the widget */}
       <div 
-        className="w-full h-screen overflow-hidden"
+        className="w-full h-screen overflow-hidden pointer-events-none"
         style={{ backgroundColor: 'transparent' }}
       >
         <CleanAIWidget />
