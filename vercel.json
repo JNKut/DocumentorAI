@@ -1,24 +1,21 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/node"
+  "buildCommand": "npm run build",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install",
+  "functions": {
+    "server/index.ts": {
+      "runtime": "@vercel/node"
     }
-  ],
-  "routes": [
+  },
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/dist/index.js"
+      "source": "/api/(.*)",
+      "destination": "/server/index.ts"
     },
     {
-      "src": "/(.*)",
-      "dest": "/dist/public/$1"
+      "source": "/(.*)",
+      "destination": "/dist/public/$1"
     }
-  ],
-  "functions": {
-    "dist/index.js": {
-      "includeFiles": "dist/**"
-    }
-  }
+  ]
 }
