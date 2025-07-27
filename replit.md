@@ -116,6 +116,7 @@ This is a full-stack web application that provides an embeddable AI chat widget 
 - June 20, 2025: Fixed knowledge base retrieval system - AI now correctly uses pricing information from knowledge-base.txt (base hoodie price: $60) and provides accurate responses with source attribution
 - July 11, 2025: Fixed widget integration isolation - created transparent /widget route that shows only the floating AI chat button without any background content for clean website embedding
 - July 26, 2025: Configured PostgreSQL database and production deployment setup - app now uses database storage in production for data persistence, fixed TypeScript errors, ready for always-on Replit Core deployment
+- July 27, 2025: Created comprehensive Railway deployment guide for always-on hosting - Railway selected as best platform for reliable 24/7 widget hosting with automatic PostgreSQL database, Git-based deployments, and professional SSL certificates
 
 ## User Preferences
 
