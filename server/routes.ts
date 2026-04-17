@@ -4,15 +4,27 @@ import { storage } from "./storage";
 import multer from "multer";
 import path from "path";
 import { promises as fs } from "fs";
-import { insertDocumentSchema, insertConversationSchema, insertMessageSchema } from "@shared/schema";
+import { insertDocumentSchema, insertConversationSchema, insertMessageSchema, insertSettingsSchema } from "@shared/schema";
 import { extractTextFromFile, chunkText, validateFileUpload } from "./services/document-processor";
 import { generateEmbeddings, generateChatResponse, findRelevantChunks } from "./services/openai";
 import { getKnowledgeBaseId } from "./services/knowledge-base";
 
-const upload = multer({ 
+const upload = multer({
   dest: 'uploads/',
-  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }
 });
+
+function requireAdminAuth(req: any, res: any, next: any) {
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (!adminPassword) {
+    return res.status(503).json({ error: "ADMIN_PASSWORD not configured" });
+  }
+  const auth = req.headers.authorization;
+  if (!auth || auth !== `Bearer ${adminPassword}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -77,6 +89,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.status(200).set({ "Content-Type": "text/html" }).end(embedHtml);
   });
   
+  // Public widget config endpoint (company name + greeting for the chat widget)
+  app.get("/api/widget/config", async (req, res) => {
+    try {
+      const s = await storage.getSettings();
+      res.json({
+        companyName: s?.companyName || "AI Assistant",
+        widgetGreeting: s?.widgetGreeting || "Hi! I'm your AI assistant. How can I help you today?",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin: get settings
+  app.get("/api/admin/settings", requireAdminAuth, async (req, res) => {
+    try {
+      const s = await storage.getSettings();
+      res.json(s || {
+        companyName: "",
+        companyDescription: "",
+        systemPrompt: "",
+        widgetGreeting: "Hi! I'm your AI assistant. How can I help you today?",
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin: save settings
+  app.post("/api/admin/settings", requireAdminAuth, async (req, res) => {
+    try {
+      const data = insertSettingsSchema.parse(req.body);
+      const saved = await storage.upsertSettings(data);
+      res.json(saved);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Admin: upload knowledge base file
+  app.post("/api/admin/knowledge-base", requireAdminAuth, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      const validation = validateFileUpload(req.file);
+      if (!validation.valid) {
+        await fs.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({ error: validation.error });
+      }
+      const textContent = await extractTextFromFile(req.file.path, req.file.mimetype);
+      const chunks = chunkText(textContent);
+      const embeddings = await generateEmbeddings(chunks);
+      const document = await storage.createDocument({
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        content: textContent,
+        chunks,
+        embeddings,
+      });
+      await fs.unlink(req.file.path).catch(() => {});
+      // Update the knowledge base pointer
+      const { setKnowledgeBaseId } = await import("./services/knowledge-base");
+      setKnowledgeBaseId(document.id);
+      res.json({
+        id: document.id,
+        originalName: document.originalName,
+        chunks: chunks.length,
+        message: "Knowledge base updated successfully",
+      });
+    } catch (error: any) {
+      if (req.file) await fs.unlink(req.file.path).catch(() => {});
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Upload and process document
   app.post("/api/documents", upload.single('document'), async (req, res) => {
     try {
@@ -239,11 +329,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Load company settings for system prompt
+      const companySettings = await storage.getSettings();
+
       // Generate AI response
       const { response, sourceChunks } = await generateChatResponse(
         content,
         relevantChunks,
-        conversationHistory
+        conversationHistory,
+        companySettings ? {
+          companyName: companySettings.companyName,
+          companyDescription: companySettings.companyDescription,
+          systemPrompt: companySettings.systemPrompt,
+        } : undefined
       );
 
       aiResponse = response;

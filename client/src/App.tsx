@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import WidgetPage from "@/pages/widget";
 import EmbedWidget from "@/components/EmbedWidget";
 import WidgetOnlyPage from "@/pages/widget-only";
+import AdminPage from "@/pages/admin";
 
 function Router() {
   return (
@@ -14,6 +15,7 @@ function Router() {
       <Route path="/" component={WidgetPage} />
       <Route path="/embed" component={EmbedWidget} />
       <Route path="/widget" component={WidgetOnlyPage} />
+      <Route path="/admin" component={AdminPage} />
       <Route component={NotFound} />
     </Switch>
   );

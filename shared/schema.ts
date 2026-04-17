@@ -36,6 +36,15 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const settings = pgTable("settings", {
+  id: serial("id").primaryKey(),
+  companyName: text("company_name").notNull().default("AI Assistant"),
+  companyDescription: text("company_description").notNull().default(""),
+  systemPrompt: text("system_prompt").notNull().default(""),
+  widgetGreeting: text("widget_greeting").notNull().default("Hi! I'm your AI assistant. How can I help you today?"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -72,3 +81,13 @@ export type Conversation = typeof conversations.$inferSelect;
 
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
+
+export const insertSettingsSchema = createInsertSchema(settings).pick({
+  companyName: true,
+  companyDescription: true,
+  systemPrompt: true,
+  widgetGreeting: true,
+});
+
+export type InsertSettings = z.infer<typeof insertSettingsSchema>;
+export type Settings = typeof settings.$inferSelect;

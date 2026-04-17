@@ -1,9 +1,10 @@
-import { 
-  users, documents, conversations, messages,
+import {
+  users, documents, conversations, messages, settings,
   type User, type InsertUser,
   type Document, type InsertDocument,
   type Conversation, type InsertConversation,
-  type Message, type InsertMessage
+  type Message, type InsertMessage,
+  type Settings, type InsertSettings
 } from "@shared/schema";
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
@@ -25,6 +26,9 @@ export interface IStorage {
   getMessage(id: number): Promise<Message | undefined>;
   getConversationMessages(conversationId: number): Promise<Message[]>;
   createMessage(message: InsertMessage): Promise<Message>;
+
+  getSettings(): Promise<Settings | null>;
+  upsertSettings(data: InsertSettings): Promise<Settings>;
 }
 
 export class MemStorage implements IStorage {
@@ -36,6 +40,7 @@ export class MemStorage implements IStorage {
   private currentDocumentId: number;
   private currentConversationId: number;
   private currentMessageId: number;
+  private settingsStore: Settings | null = null;
 
   constructor() {
     this.users = new Map();
@@ -143,6 +148,23 @@ export class MemStorage implements IStorage {
     this.messages.set(id, message);
     return message;
   }
+
+  async getSettings(): Promise<Settings | null> {
+    return this.settingsStore;
+  }
+
+  async upsertSettings(data: InsertSettings): Promise<Settings> {
+    const existing = this.settingsStore;
+    this.settingsStore = {
+      id: existing?.id ?? 1,
+      companyName: data.companyName ?? "AI Assistant",
+      companyDescription: data.companyDescription ?? "",
+      systemPrompt: data.systemPrompt ?? "",
+      widgetGreeting: data.widgetGreeting ?? "Hi! I'm your AI assistant. How can I help you today?",
+      updatedAt: new Date(),
+    };
+    return this.settingsStore;
+  }
 }
 
 // Database storage implementation
@@ -220,6 +242,24 @@ export class DatabaseStorage implements IStorage {
       sourceChunks: Array.isArray(insertMessage.sourceChunks) ? insertMessage.sourceChunks as string[] : null
     };
     const result = await this.db.insert(messages).values(messageData).returning();
+    return result[0];
+  }
+
+  async getSettings(): Promise<Settings | null> {
+    const result = await this.db.select().from(settings).limit(1);
+    return result[0] ?? null;
+  }
+
+  async upsertSettings(data: InsertSettings): Promise<Settings> {
+    const existing = await this.getSettings();
+    if (existing) {
+      const result = await this.db.update(settings)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(settings.id, existing.id))
+        .returning();
+      return result[0];
+    }
+    const result = await this.db.insert(settings).values(data).returning();
     return result[0];
   }
 }

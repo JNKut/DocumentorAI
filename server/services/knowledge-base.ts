@@ -54,6 +54,10 @@ export function getKnowledgeBaseId(): number | null {
   return knowledgeBaseId;
 }
 
+export function setKnowledgeBaseId(id: number): void {
+  knowledgeBaseId = id;
+}
+
 export async function reloadKnowledgeBase(): Promise<void> {
   console.log('Reloading knowledge base...');
   await initializeKnowledgeBase(true);

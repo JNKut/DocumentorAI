@@ -26,8 +26,16 @@ export default function CleanAIWidget() {
   const [message, setMessage] = useState('');
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-  
+  const [widgetConfig, setWidgetConfig] = useState({ companyName: 'AI Assistant', widgetGreeting: "Hi! I'm your AI assistant. How can I help you today?" });
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch('/api/widget/config')
+      .then(r => r.json())
+      .then(data => setWidgetConfig(data))
+      .catch(() => {});
+  }, []);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -139,7 +147,7 @@ export default function CleanAIWidget() {
           <div className="bg-primary text-white p-3 flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Bot className="w-5 h-5" />
-              <span className="font-medium">AI Assistant</span>
+              <span className="font-medium">{widgetConfig.companyName}</span>
             </div>
             <Button
               variant="ghost"
@@ -161,7 +169,7 @@ export default function CleanAIWidget() {
                 </div>
                 <div className="bg-gray-100 rounded-lg p-2 max-w-[80%]">
                   <p className="text-xs text-gray-700">
-                    Hi! I'm your AI assistant. How can I help you today?
+                    {widgetConfig.widgetGreeting}
                   </p>
                 </div>
               </div>

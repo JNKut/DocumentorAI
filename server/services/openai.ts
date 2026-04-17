@@ -21,15 +21,19 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 export async function generateChatResponse(
   message: string,
   context: string[],
-  conversationHistory: { role: "user" | "assistant"; content: string }[] = []
+  conversationHistory: { role: "user" | "assistant"; content: string }[] = [],
+  companySettings?: { companyName?: string; companyDescription?: string; systemPrompt?: string }
 ): Promise<{ response: string; sourceChunks: string[] }> {
   try {
     // If we have context, inject it directly into the user message
-    const enhancedMessage = context.length > 0 
+    const enhancedMessage = context.length > 0
       ? `Based on this information: ${context.join(' ')}\n\nQuestion: ${message}\n\nPlease answer the question using the information provided above.`
       : message;
 
-    const systemPrompt = `You are an AI assistant for Shop Twist and Thread. Always use the information provided in the user's message to answer questions. Do not say you don't have information if it's provided in the context.`;
+    const companyName = companySettings?.companyName || "this company";
+    const companyDescription = companySettings?.companyDescription || "";
+    const systemPrompt = companySettings?.systemPrompt ||
+      `You are an AI customer service assistant for ${companyName}. ${companyDescription ? companyDescription + " " : ""}Always use the information provided in the user's message to answer questions. Do not say you don't have information if it's provided in the context.`;
 
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
