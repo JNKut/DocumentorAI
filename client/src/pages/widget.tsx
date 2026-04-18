@@ -16,14 +16,7 @@ export default function WidgetPage() {
             </CardHeader>
             <CardContent>
               <div className="bg-gray-50 rounded-lg p-4 font-mono text-sm text-gray-700">
-                {`<script src="${window.location.origin}/embed.js"></script>
-<script>
-  AIWidget.init({
-    apiKey: 'your-openai-api-key',
-    position: 'bottom-right',
-    theme: 'light'
-  });
-</script>`}
+                {`<script src="${window.location.origin}/widget.js"></script>`}
               </div>
             </CardContent>
           </Card>
