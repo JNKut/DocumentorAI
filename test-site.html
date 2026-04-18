@@ -149,6 +149,16 @@
 
   <!-- AI Chat Widget -->
   <script src="http://localhost:3000/widget.js"></script>
+  <script>
+    window.addEventListener('load', function() {
+      if (window.AIWidget) {
+        // Remove the auto-initialized widget and re-create with correct URL
+        var existing = document.getElementById('ai-chat-widget');
+        if (existing) existing.remove();
+        window.AIWidget.create({ apiUrl: 'http://localhost:3000' });
+      }
+    });
+  </script>
 
 </body>
 </html>

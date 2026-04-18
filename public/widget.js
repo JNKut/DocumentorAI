@@ -3,7 +3,7 @@
   
   function createWidget(options = {}) {
     const defaults = {
-      apiUrl: window.location.origin,
+      apiUrl: (window.location.origin === 'null' || !window.location.origin) ? 'http://localhost:3000' : window.location.origin,
       position: 'bottom-right',
       width: '400px',
       height: '600px',
@@ -69,7 +69,10 @@
     const script = scripts[scripts.length - 1];
     
     if (script && script.dataset.autoInit !== 'false') {
+      const scriptSrc = script.src;
+      const scriptOrigin = scriptSrc ? new URL(scriptSrc).origin : null;
       createWidget({
+        apiUrl: script.dataset.apiUrl || scriptOrigin || undefined,
         position: script.dataset.position || 'bottom-right',
         width: script.dataset.width || '400px',
         height: script.dataset.height || '600px'

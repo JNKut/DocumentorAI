@@ -33,7 +33,14 @@ export async function generateChatResponse(
     const companyName = companySettings?.companyName || "this company";
     const companyDescription = companySettings?.companyDescription || "";
     const systemPrompt = companySettings?.systemPrompt ||
-      `You are an AI customer service assistant for ${companyName}. ${companyDescription ? companyDescription + " " : ""}Always use the information provided in the user's message to answer questions. Do not say you don't have information if it's provided in the context.`;
+      `You are a customer service assistant for ${companyName}. ${companyDescription ? companyDescription + " " : ""}Always use the information provided in the user's message to answer questions. Do not say you don't have information if it's provided in the context.
+
+Important response rules:
+- Never use markdown formatting. No asterisks, no bold, no bullet points with -, no headings with #.
+- Keep responses short and to the point — 2 to 4 sentences maximum unless the question truly requires more.
+- Write in plain, natural sentences as a knowledgeable human would speak.
+- Be professional and warm, but never robotic or overly formal.
+- If listing multiple items, write them as a natural sentence (e.g. "We offer X, Y, and Z.") not as a bullet list.`;
 
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
