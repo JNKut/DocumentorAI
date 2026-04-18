@@ -3,7 +3,10 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
 import path from "path";
+import { fileURLToPath } from "url";
 import { promises as fs } from "fs";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { insertDocumentSchema, insertConversationSchema, insertMessageSchema, insertSettingsSchema } from "@shared/schema";
 import { extractTextFromFile, chunkText, validateFileUpload } from "./services/document-processor";
 import { generateEmbeddings, generateChatResponse, findRelevantChunks } from "./services/openai";
@@ -31,7 +34,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Serve widget script
   app.get("/widget.js", async (req, res) => {
     try {
-      const widgetScript = path.resolve(import.meta.dirname, "..", "public", "widget.js");
+      const widgetScript = path.resolve(__dirname, "..", "public", "widget.js");
       const script = await fs.readFile(widgetScript, "utf-8");
       res.status(200).set({ "Content-Type": "application/javascript" }).end(script);
     } catch (error: any) {
