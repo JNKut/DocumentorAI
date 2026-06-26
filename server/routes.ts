@@ -99,6 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         companyName: s?.companyName || "AI Assistant",
         widgetGreeting: s?.widgetGreeting || "Hi! I'm your AI assistant. How can I help you today?",
+        primaryColor: s?.primaryColor || "#2194f3",
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

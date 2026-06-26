@@ -42,6 +42,7 @@ export const settings = pgTable("settings", {
   companyDescription: text("company_description").notNull().default(""),
   systemPrompt: text("system_prompt").notNull().default(""),
   widgetGreeting: text("widget_greeting").notNull().default("Hi! I'm your AI assistant. How can I help you today?"),
+  primaryColor: text("primary_color").notNull().default("#2194f3"),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -87,6 +88,7 @@ export const insertSettingsSchema = createInsertSchema(settings).pick({
   companyDescription: true,
   systemPrompt: true,
   widgetGreeting: true,
+  primaryColor: true,
 });
 
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;

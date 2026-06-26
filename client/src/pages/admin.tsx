@@ -8,6 +8,16 @@ import { useToast } from '@/hooks/use-toast';
 
 const STORAGE_KEY = 'admin_token';
 
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const clean = hex.replace('#', '');
+  const int = parseInt(clean, 16);
+  return { r: (int >> 16) & 255, g: (int >> 8) & 255, b: int & 255 };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
 export default function AdminPage() {
   const [token, setToken] = useState<string>(() => localStorage.getItem(STORAGE_KEY) || '');
   const [passwordInput, setPasswordInput] = useState('');
@@ -18,6 +28,8 @@ export default function AdminPage() {
   const [companyDescription, setCompanyDescription] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [widgetGreeting, setWidgetGreeting] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('#2194f3');
+  const [hexInput, setHexInput] = useState('#2194f3');
   const [kbFile, setKbFile] = useState<File | null>(null);
   const [kbStatus, setKbStatus] = useState('');
 
@@ -44,6 +56,9 @@ export default function AdminPage() {
       setCompanyDescription(data.companyDescription || '');
       setSystemPrompt(data.systemPrompt || '');
       setWidgetGreeting(data.widgetGreeting || '');
+      const color = data.primaryColor || '#2194f3';
+      setPrimaryColor(color);
+      setHexInput(color);
       setIsAuthenticated(true);
     } catch {
       toast({ title: 'Failed to load settings', variant: 'destructive' });
@@ -65,14 +80,17 @@ export default function AdminPage() {
       setCompanyDescription(data.companyDescription || '');
       setSystemPrompt(data.systemPrompt || '');
       setWidgetGreeting(data.widgetGreeting || '');
+      const color = data.primaryColor || '#2194f3';
+      setPrimaryColor(color);
+      setHexInput(color);
       setIsAuthenticated(true);
     } else {
       toast({ title: 'Incorrect password', variant: 'destructive' });
     }
   }
 
-  async function handleSaveSettings(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSaveSettings(e?: React.FormEvent | React.MouseEvent) {
+    e?.preventDefault();
     setIsLoading(true);
     const res = await fetch('/api/admin/settings', {
       method: 'POST',
@@ -80,7 +98,7 @@ export default function AdminPage() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ companyName, companyDescription, systemPrompt, widgetGreeting }),
+      body: JSON.stringify({ companyName, companyDescription, systemPrompt, widgetGreeting, primaryColor }),
     });
     setIsLoading(false);
     if (res.ok) {
@@ -214,6 +232,80 @@ export default function AdminPage() {
                 {isLoading ? 'Saving...' : 'Save Settings'}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        {/* Brand Color */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Brand Color</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Sets the primary color for the chat widget — the button, header, and message bubbles.
+            </p>
+            <div className="flex items-center gap-4">
+              <input
+                type="color"
+                value={primaryColor}
+                onChange={(e) => {
+                  setPrimaryColor(e.target.value);
+                  setHexInput(e.target.value);
+                }}
+                className="h-10 w-14 cursor-pointer rounded border border-gray-300 p-0.5"
+                title="Color picker"
+              />
+              <div className="flex items-center gap-1">
+                {(['r', 'g', 'b'] as const).map((ch, i) => {
+                  const rgb = hexToRgb(primaryColor);
+                  return (
+                    <div key={ch} className="flex flex-col items-center gap-1">
+                      <span className="text-xs font-medium text-gray-500 uppercase">{ch}</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={255}
+                        value={rgb[ch]}
+                        onChange={(e) => {
+                          const current = hexToRgb(primaryColor);
+                          const val = Math.min(255, Math.max(0, parseInt(e.target.value) || 0));
+                          const next = { ...current, [ch]: val };
+                          const hex = rgbToHex(next.r, next.g, next.b);
+                          setPrimaryColor(hex);
+                          setHexInput(hex);
+                        }}
+                        className="w-16 rounded border border-gray-300 px-2 py-1.5 text-sm text-center"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-gray-500">HEX</span>
+                <input
+                  type="text"
+                  value={hexInput}
+                  onChange={(e) => {
+                    setHexInput(e.target.value);
+                    const v = e.target.value.trim();
+                    if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+                      setPrimaryColor(v);
+                    }
+                  }}
+                  onBlur={() => setHexInput(primaryColor)}
+                  className="w-24 rounded border border-gray-300 px-2 py-1.5 text-sm font-mono"
+                  placeholder="#2194f3"
+                />
+              </div>
+            </div>
+            <div
+              className="h-10 w-full rounded-md border border-gray-200"
+              style={{ backgroundColor: primaryColor }}
+              title="Color preview"
+            />
+            <Button onClick={handleSaveSettings} disabled={isLoading}>
+              {isLoading ? 'Saving...' : 'Save Color'}
+            </Button>
           </CardContent>
         </Card>
 

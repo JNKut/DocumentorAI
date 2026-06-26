@@ -26,7 +26,7 @@ export default function CleanAIWidget() {
   const [message, setMessage] = useState('');
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [widgetConfig, setWidgetConfig] = useState({ companyName: 'AI Assistant', widgetGreeting: "Hi! I'm your AI assistant. How can I help you today?" });
+  const [widgetConfig, setWidgetConfig] = useState({ companyName: 'AI Assistant', widgetGreeting: "Hi! I'm your AI assistant. How can I help you today?", primaryColor: '#2194f3' });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -121,7 +121,10 @@ export default function CleanAIWidget() {
   };
 
   return (
-    <div className="fixed bottom-0 right-0 z-50 font-sans pointer-events-auto">
+    <div
+      className="fixed bottom-0 right-0 z-50 font-sans pointer-events-auto"
+      style={{ '--primary': widgetConfig.primaryColor } as React.CSSProperties}
+    >
       {/* Collapsed State - Circular Button */}
       {!isOpen && (
         <div className="relative m-4">

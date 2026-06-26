@@ -161,6 +161,7 @@ export class MemStorage implements IStorage {
       companyDescription: data.companyDescription ?? "",
       systemPrompt: data.systemPrompt ?? "",
       widgetGreeting: data.widgetGreeting ?? "Hi! I'm your AI assistant. How can I help you today?",
+      primaryColor: data.primaryColor ?? "#2194f3",
       updatedAt: new Date(),
     };
     return this.settingsStore;
