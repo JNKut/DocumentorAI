@@ -8,7 +8,24 @@ import {
 } from "@shared/schema";
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { eq } from 'drizzle-orm';
+import { eq, gte, sql } from 'drizzle-orm';
+
+export interface AnalyticsData {
+  totals: {
+    conversations: number;
+    userMessages: number;
+    assistantMessages: number;
+    avgMessagesPerConversation: number;
+  };
+  byPeriod: {
+    today:     { conversations: number; messages: number };
+    thisWeek:  { conversations: number; messages: number };
+    thisMonth: { conversations: number; messages: number };
+    allTime:   { conversations: number; messages: number };
+  };
+  documents: Array<{ originalName: string; size: number; chunkCount: number; createdAt: string }>;
+  recentConversations: Array<{ sessionId: string; messageCount: number; createdAt: string }>;
+}
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -29,6 +46,8 @@ export interface IStorage {
 
   getSettings(): Promise<Settings | null>;
   upsertSettings(data: InsertSettings): Promise<Settings>;
+
+  getAnalytics(): Promise<AnalyticsData>;
 }
 
 export class MemStorage implements IStorage {
@@ -166,6 +185,56 @@ export class MemStorage implements IStorage {
     };
     return this.settingsStore;
   }
+
+  async getAnalytics(): Promise<AnalyticsData> {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const allConvs = Array.from(this.conversations.values());
+    const allMsgs = Array.from(this.messages.values());
+
+    const countConvsSince = (d: Date) => allConvs.filter(c => c.createdAt >= d).length;
+    const countMsgsSince = (d: Date) => allMsgs.filter(m => m.createdAt >= d).length;
+
+    const msgCounts = allConvs.map(c => allMsgs.filter(m => m.conversationId === c.id).length);
+    const avg = msgCounts.length ? msgCounts.reduce((a, b) => a + b, 0) / msgCounts.length : 0;
+
+    const docs = Array.from(this.documents.values()).map(d => ({
+      originalName: d.originalName,
+      size: d.size,
+      chunkCount: (d.chunks as string[]).length,
+      createdAt: d.createdAt.toISOString(),
+    }));
+
+    const recentConvs = allConvs
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 10)
+      .map(c => ({
+        sessionId: c.sessionId,
+        messageCount: allMsgs.filter(m => m.conversationId === c.id).length,
+        createdAt: c.createdAt.toISOString(),
+      }));
+
+    return {
+      totals: {
+        conversations: allConvs.length,
+        userMessages: allMsgs.filter(m => m.role === 'user').length,
+        assistantMessages: allMsgs.filter(m => m.role === 'assistant').length,
+        avgMessagesPerConversation: Math.round(avg * 10) / 10,
+      },
+      byPeriod: {
+        today:     { conversations: countConvsSince(startOfToday), messages: countMsgsSince(startOfToday) },
+        thisWeek:  { conversations: countConvsSince(startOfWeek),  messages: countMsgsSince(startOfWeek) },
+        thisMonth: { conversations: countConvsSince(startOfMonth), messages: countMsgsSince(startOfMonth) },
+        allTime:   { conversations: allConvs.length,               messages: allMsgs.length },
+      },
+      documents: docs,
+      recentConversations: recentConvs,
+    };
+  }
 }
 
 // Database storage implementation
@@ -262,6 +331,73 @@ export class DatabaseStorage implements IStorage {
     }
     const result = await this.db.insert(settings).values(data).returning();
     return result[0];
+  }
+
+  async getAnalytics(): Promise<AnalyticsData> {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(startOfToday);
+    startOfWeek.setDate(startOfToday.getDate() - startOfToday.getDay());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [convTotal] = await this.db.select({ count: sql<number>`count(*)::int` }).from(conversations);
+    const [msgUser]   = await this.db.select({ count: sql<number>`count(*)::int` }).from(messages).where(eq(messages.role, 'user'));
+    const [msgAssist] = await this.db.select({ count: sql<number>`count(*)::int` }).from(messages).where(eq(messages.role, 'assistant'));
+
+    const avgRows = await this.db.execute(sql`
+      SELECT COALESCE(ROUND(AVG(msg_count)::numeric, 1), 0) as avg
+      FROM (SELECT COUNT(*)::int as msg_count FROM messages GROUP BY conversation_id) t
+    `);
+    const avgMsgs = Number((avgRows.rows[0] as any)?.avg ?? 0);
+
+    const [convToday]  = await this.db.select({ count: sql<number>`count(*)::int` }).from(conversations).where(gte(conversations.createdAt, startOfToday));
+    const [convWeek]   = await this.db.select({ count: sql<number>`count(*)::int` }).from(conversations).where(gte(conversations.createdAt, startOfWeek));
+    const [convMonth]  = await this.db.select({ count: sql<number>`count(*)::int` }).from(conversations).where(gte(conversations.createdAt, startOfMonth));
+    const [msgToday]   = await this.db.select({ count: sql<number>`count(*)::int` }).from(messages).where(gte(messages.createdAt, startOfToday));
+    const [msgWeek]    = await this.db.select({ count: sql<number>`count(*)::int` }).from(messages).where(gte(messages.createdAt, startOfWeek));
+    const [msgMonth]   = await this.db.select({ count: sql<number>`count(*)::int` }).from(messages).where(gte(messages.createdAt, startOfMonth));
+
+    const docs = await this.db.select({
+      originalName: documents.originalName,
+      size: documents.size,
+      chunks: documents.chunks,
+      createdAt: documents.createdAt,
+    }).from(documents);
+
+    const recentRows = await this.db.execute(sql`
+      SELECT c.session_id, c.created_at, COUNT(m.id)::int as message_count
+      FROM conversations c
+      LEFT JOIN messages m ON m.conversation_id = c.id
+      GROUP BY c.id, c.session_id, c.created_at
+      ORDER BY c.created_at DESC
+      LIMIT 10
+    `);
+
+    return {
+      totals: {
+        conversations: convTotal.count,
+        userMessages: msgUser.count,
+        assistantMessages: msgAssist.count,
+        avgMessagesPerConversation: avgMsgs,
+      },
+      byPeriod: {
+        today:     { conversations: convToday.count,  messages: msgToday.count },
+        thisWeek:  { conversations: convWeek.count,   messages: msgWeek.count },
+        thisMonth: { conversations: convMonth.count,  messages: msgMonth.count },
+        allTime:   { conversations: convTotal.count,  messages: msgUser.count + msgAssist.count },
+      },
+      documents: docs.map(d => ({
+        originalName: d.originalName,
+        size: d.size,
+        chunkCount: (d.chunks as string[]).length,
+        createdAt: d.createdAt.toISOString(),
+      })),
+      recentConversations: (recentRows.rows as any[]).map(r => ({
+        sessionId: r.session_id,
+        messageCount: r.message_count,
+        createdAt: new Date(r.created_at).toISOString(),
+      })),
+    };
   }
 }
 

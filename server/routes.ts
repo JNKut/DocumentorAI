@@ -106,6 +106,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: analytics (CORS enabled so the standalone dashboard can call this directly)
+  app.options("/api/admin/analytics", (req, res) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET");
+    res.header("Access-Control-Allow-Headers", "Authorization, Content-Type");
+    res.sendStatus(200);
+  });
+
+  app.get("/api/admin/analytics", requireAdminAuth, async (req, res) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    try {
+      const analytics = await storage.getAnalytics();
+      res.json(analytics);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Admin: get settings
   app.get("/api/admin/settings", requireAdminAuth, async (req, res) => {
     try {
