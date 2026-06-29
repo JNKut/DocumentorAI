@@ -254,6 +254,18 @@ export default function CleanAIWidget() {
               </Button>
             </div>
           </div>
+
+          {/* Watermark */}
+          <div className="py-1 text-center border-t border-gray-100">
+            <a
+              href="https://documentorai.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[9px] text-gray-400 hover:text-gray-500 no-underline"
+            >
+              Powered by DocumentorAI
+            </a>
+          </div>
         </Card>
       )}
     </div>
