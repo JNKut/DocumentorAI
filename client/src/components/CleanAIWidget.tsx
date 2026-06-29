@@ -256,7 +256,7 @@ export default function CleanAIWidget() {
           </div>
 
           {/* Watermark */}
-          <div className="py-1 text-center border-t border-gray-100">
+          <div className="py-0.5 text-center border-t border-gray-100">
             <a
               href="https://documentorai.org"
               target="_blank"
