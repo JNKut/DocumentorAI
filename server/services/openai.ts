@@ -1,7 +1,8 @@
 import OpenAI from "openai";
+import { storage } from "../storage";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ 
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR || ""
 });
 
@@ -11,6 +12,15 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
       model: "text-embedding-3-small",
       input: texts,
     });
+
+    if (response.usage) {
+      storage.recordTokenUsage({
+        model: "text-embedding-3-small",
+        promptTokens: response.usage.prompt_tokens,
+        completionTokens: 0,
+        totalTokens: response.usage.total_tokens,
+      }).catch(err => console.error("Failed to record token usage:", err));
+    }
 
     return response.data.map(item => item.embedding);
   } catch (error) {
@@ -54,6 +64,15 @@ Important response rules:
       max_tokens: 500,
       temperature: 0.7,
     });
+
+    if (response.usage) {
+      storage.recordTokenUsage({
+        model: "gpt-4o",
+        promptTokens: response.usage.prompt_tokens,
+        completionTokens: response.usage.completion_tokens,
+        totalTokens: response.usage.total_tokens,
+      }).catch(err => console.error("Failed to record token usage:", err));
+    }
 
     return {
       response: response.choices[0].message.content || "I couldn't generate a response.",

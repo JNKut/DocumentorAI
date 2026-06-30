@@ -1,14 +1,34 @@
 import {
-  users, documents, conversations, messages, settings,
+  users, documents, conversations, messages, settings, tokenUsage,
   type User, type InsertUser,
   type Document, type InsertDocument,
   type Conversation, type InsertConversation,
   type Message, type InsertMessage,
-  type Settings, type InsertSettings
+  type Settings, type InsertSettings,
+  type TokenUsage
 } from "@shared/schema";
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
 import { eq, gte, sql } from 'drizzle-orm';
+
+// Published OpenAI pricing, USD per token. Verify against platform.openai.com/pricing if costs look off.
+const PRICING: Record<string, { input: number; output: number }> = {
+  'gpt-4o': { input: 2.50 / 1_000_000, output: 10.00 / 1_000_000 },
+  'text-embedding-3-small': { input: 0.02 / 1_000_000, output: 0 },
+};
+
+function costForModel(model: string, promptTokens: number, completionTokens: number): number {
+  const rate = PRICING[model];
+  if (!rate) return 0;
+  return promptTokens * rate.input + completionTokens * rate.output;
+}
+
+export interface RecordTokenUsage {
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+}
 
 export interface AnalyticsData {
   totals: {
@@ -25,6 +45,14 @@ export interface AnalyticsData {
   };
   documents: Array<{ originalName: string; size: number; chunkCount: number; createdAt: string }>;
   recentConversations: Array<{ sessionId: string; messageCount: number; createdAt: string }>;
+  costs: {
+    openai: {
+      today: number;
+      thisWeek: number;
+      thisMonth: number;
+      allTime: number;
+    };
+  };
 }
 
 export interface IStorage {
@@ -47,6 +75,7 @@ export interface IStorage {
   getSettings(): Promise<Settings | null>;
   upsertSettings(data: InsertSettings): Promise<Settings>;
 
+  recordTokenUsage(entry: RecordTokenUsage): Promise<void>;
   getAnalytics(): Promise<AnalyticsData>;
 }
 
@@ -60,6 +89,8 @@ export class MemStorage implements IStorage {
   private currentConversationId: number;
   private currentMessageId: number;
   private settingsStore: Settings | null = null;
+  private tokenUsageLog: TokenUsage[];
+  private currentTokenUsageId: number;
 
   constructor() {
     this.users = new Map();
@@ -70,6 +101,8 @@ export class MemStorage implements IStorage {
     this.currentDocumentId = 1;
     this.currentConversationId = 1;
     this.currentMessageId = 1;
+    this.tokenUsageLog = [];
+    this.currentTokenUsageId = 1;
   }
 
   async getUser(id: number): Promise<User | undefined> {
@@ -186,6 +219,34 @@ export class MemStorage implements IStorage {
     return this.settingsStore;
   }
 
+  async recordTokenUsage(entry: RecordTokenUsage): Promise<void> {
+    const id = this.currentTokenUsageId++;
+    this.tokenUsageLog.push({
+      id,
+      model: entry.model,
+      promptTokens: entry.promptTokens,
+      completionTokens: entry.completionTokens,
+      totalTokens: entry.totalTokens,
+      createdAt: new Date(),
+    });
+  }
+
+  private openaiCostSince(d: Date): number {
+    const byModel = new Map<string, { prompt: number; completion: number }>();
+    for (const u of this.tokenUsageLog) {
+      if (u.createdAt < d) continue;
+      const cur = byModel.get(u.model) ?? { prompt: 0, completion: 0 };
+      cur.prompt += u.promptTokens;
+      cur.completion += u.completionTokens;
+      byModel.set(u.model, cur);
+    }
+    let total = 0;
+    for (const [model, { prompt, completion }] of Array.from(byModel.entries())) {
+      total += costForModel(model, prompt, completion);
+    }
+    return total;
+  }
+
   async getAnalytics(): Promise<AnalyticsData> {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -233,6 +294,14 @@ export class MemStorage implements IStorage {
       },
       documents: docs,
       recentConversations: recentConvs,
+      costs: {
+        openai: {
+          today: this.openaiCostSince(startOfToday),
+          thisWeek: this.openaiCostSince(startOfWeek),
+          thisMonth: this.openaiCostSince(startOfMonth),
+          allTime: this.openaiCostSince(new Date(0)),
+        },
+      },
     };
   }
 }
@@ -333,6 +402,25 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async recordTokenUsage(entry: RecordTokenUsage): Promise<void> {
+    await this.db.insert(tokenUsage).values({
+      model: entry.model,
+      promptTokens: entry.promptTokens,
+      completionTokens: entry.completionTokens,
+      totalTokens: entry.totalTokens,
+    });
+  }
+
+  private async openaiCostSince(d: Date): Promise<number> {
+    const rows = await this.db.select({
+      model: tokenUsage.model,
+      promptTokens: sql<number>`coalesce(sum(${tokenUsage.promptTokens}), 0)::int`,
+      completionTokens: sql<number>`coalesce(sum(${tokenUsage.completionTokens}), 0)::int`,
+    }).from(tokenUsage).where(gte(tokenUsage.createdAt, d)).groupBy(tokenUsage.model);
+
+    return rows.reduce((total, r) => total + costForModel(r.model, r.promptTokens, r.completionTokens), 0);
+  }
+
   async getAnalytics(): Promise<AnalyticsData> {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -397,6 +485,14 @@ export class DatabaseStorage implements IStorage {
         messageCount: r.message_count,
         createdAt: new Date(r.created_at).toISOString(),
       })),
+      costs: {
+        openai: {
+          today: await this.openaiCostSince(startOfToday),
+          thisWeek: await this.openaiCostSince(startOfWeek),
+          thisMonth: await this.openaiCostSince(startOfMonth),
+          allTime: await this.openaiCostSince(new Date(0)),
+        },
+      },
     };
   }
 }

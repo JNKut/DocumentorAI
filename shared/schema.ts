@@ -36,6 +36,15 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const tokenUsage = pgTable("token_usage", {
+  id: serial("id").primaryKey(),
+  model: text("model").notNull(),
+  promptTokens: integer("prompt_tokens").notNull().default(0),
+  completionTokens: integer("completion_tokens").notNull().default(0),
+  totalTokens: integer("total_tokens").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   companyName: text("company_name").notNull().default("AI Assistant"),
@@ -93,3 +102,5 @@ export const insertSettingsSchema = createInsertSchema(settings).pick({
 
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 export type Settings = typeof settings.$inferSelect;
+
+export type TokenUsage = typeof tokenUsage.$inferSelect;
