@@ -5,6 +5,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promises as fs } from "fs";
+import rateLimit from "express-rate-limit";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { insertDocumentSchema, insertConversationSchema, insertMessageSchema, insertSettingsSchema } from "@shared/schema";
@@ -29,8 +30,37 @@ function requireAdminAuth(req: any, res: any, next: any) {
   next();
 }
 
+// Backstop limit for all /api/* routes
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
+});
+
+// Strict limit for the OpenAI chat endpoint
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many messages sent, please slow down and try again in a minute." },
+});
+
+// Strict limit for document upload endpoints (trigger embedding generation)
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many uploads, please try again in a minute." },
+});
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  
+  app.use("/api", generalLimiter);
+
+
   // Serve widget script
   app.get("/widget.js", async (req, res) => {
     try {
@@ -151,7 +181,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: upload knowledge base file
-  app.post("/api/admin/knowledge-base", requireAdminAuth, upload.single('file'), async (req, res) => {
+  app.post("/api/admin/knowledge-base", uploadLimiter, requireAdminAuth, upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -190,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Upload and process document
-  app.post("/api/documents", upload.single('document'), async (req, res) => {
+  app.post("/api/documents", uploadLimiter, upload.single('document'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -291,7 +321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Send message and get AI response
-  app.post("/api/conversations/:id/messages", async (req, res) => {
+  app.post("/api/conversations/:id/messages", messageLimiter, async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
       const { content } = req.body;
