@@ -1,5 +1,9 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+// Import the inner lib directly — pdf-parse's index.js has a debug harness
+// keyed on `!module.parent` that misfires under ESM/tsx and crashes on load.
+import pdfParse from 'pdf-parse/lib/pdf-parse.js';
+import mammoth from 'mammoth';
 
 export function chunkText(text: string, chunkSize: number = 1000, overlap: number = 200): string[] {
   const chunks: string[] = [];
@@ -37,21 +41,27 @@ export async function extractTextFromFile(filePath: string, mimeType: string): P
     if (mimeType === 'text/plain') {
       return await fs.readFile(filePath, 'utf-8');
     }
-    
+
     if (mimeType === 'application/pdf') {
-      // For production, you would use a PDF parsing library like pdf-parse
-      // For now, we'll return a placeholder that indicates PDF processing is needed
-      throw new Error('PDF processing requires additional setup. Please convert to text format.');
+      const buffer = await fs.readFile(filePath);
+      const data = await pdfParse(buffer);
+      if (!data.text.trim()) {
+        throw new Error('No extractable text found in PDF (it may be a scanned image).');
+      }
+      return data.text;
     }
-    
+
     if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-      // For production, you would use a library like mammoth.js
-      throw new Error('DOCX processing requires additional setup. Please convert to text format.');
+      const result = await mammoth.extractRawText({ path: filePath });
+      if (!result.value.trim()) {
+        throw new Error('No extractable text found in DOCX file.');
+      }
+      return result.value;
     }
-    
+
     throw new Error(`Unsupported file type: ${mimeType}`);
   } catch (error) {
-    throw new Error(`Failed to extract text from file: ${error.message}`);
+    throw new Error(`Failed to extract text from file: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 

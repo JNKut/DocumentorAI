@@ -3,7 +3,12 @@ import { storage } from "../storage";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR || ""
+  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR || "",
+  // Bound how long a hung request can block the chat widget, and let the SDK's
+  // built-in exponential backoff retry transient failures (rate limits, 5xxs,
+  // connection errors) before giving up.
+  timeout: 30 * 1000,
+  maxRetries: 2,
 });
 
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {

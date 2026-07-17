@@ -1,8 +1,23 @@
+import "./instrument";
+import * as Sentry from "@sentry/node";
 import express, { type Request, Response, NextFunction } from "express";
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 const app = express();
 app.set("trust proxy", 1);
+app.use(
+  helmet({
+    // The chat widget is designed to be iframe-embedded on arbitrary client
+    // websites, and widget.js/API responses must be loadable cross-origin from
+    // those sites — so framing and cross-origin resource restrictions are off.
+    // CSP is off too since the Vite-built React bundle isn't nonce-based yet.
+    contentSecurityPolicy: false,
+    frameguard: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -38,6 +53,8 @@ app.use((req, res, next) => {
 
 (async () => {
   const server = await registerRoutes(app);
+
+  Sentry.setupExpressErrorHandler(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;

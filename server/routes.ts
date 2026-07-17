@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import * as Sentry from "@sentry/node";
 import { storage } from "./storage";
 import multer from "multer";
 import path from "path";
@@ -157,24 +158,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         primaryColor: s?.primaryColor || "#2194f3",
       });
     } catch (error: any) {
+      Sentry.captureException(error);
       res.status(500).json({ error: error.message });
     }
   });
 
-  // Admin: analytics (CORS enabled so the standalone dashboard can call this directly)
+  // Admin: analytics (CORS enabled, scoped to the known dashboard origins, so the
+  // standalone dashboard can call this directly from a different Railway domain)
+  const ALLOWED_DASHBOARD_ORIGINS = new Set([
+    "https://documentorai-dashboard-production.up.railway.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+  ]);
+
+  function applyDashboardCors(req: any, res: any) {
+    const origin = req.headers.origin;
+    if (origin && ALLOWED_DASHBOARD_ORIGINS.has(origin)) {
+      res.header("Access-Control-Allow-Origin", origin);
+      res.header("Vary", "Origin");
+    }
+  }
+
   app.options("/api/admin/analytics", (req, res) => {
-    res.header("Access-Control-Allow-Origin", "*");
+    applyDashboardCors(req, res);
     res.header("Access-Control-Allow-Methods", "GET");
     res.header("Access-Control-Allow-Headers", "Authorization, Content-Type");
     res.sendStatus(200);
   });
 
   app.get("/api/admin/analytics", requireAdminAuth, async (req, res) => {
-    res.header("Access-Control-Allow-Origin", "*");
+    applyDashboardCors(req, res);
     try {
       const analytics = await storage.getAnalytics();
       res.json(analytics);
     } catch (error: any) {
+      Sentry.captureException(error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -190,6 +208,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         widgetGreeting: "Hi! I'm your AI assistant. How can I help you today?",
       });
     } catch (error: any) {
+      Sentry.captureException(error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -239,6 +258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Knowledge base updated successfully",
       });
     } catch (error: any) {
+      Sentry.captureException(error);
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
       res.status(500).json({ error: error.message });
     }
@@ -294,6 +314,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
     } catch (error) {
+      Sentry.captureException(error);
       // Clean up uploaded file on error
       if (req.file) {
         await fs.unlink(req.file.path).catch(() => {});
@@ -307,7 +328,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const documentId = parseInt(req.params.id);
       const document = await storage.getDocument(documentId);
-      
+
       if (!document) {
         return res.status(404).json({ error: "Document not found" });
       }
@@ -321,6 +342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
     } catch (error: any) {
+      Sentry.captureException(error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -341,6 +363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(conversation);
 
     } catch (error: any) {
+      Sentry.captureException(error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -443,6 +466,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
     } catch (error: any) {
+      Sentry.captureException(error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -469,6 +493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(messages);
 
     } catch (error: any) {
+      Sentry.captureException(error);
       res.status(500).json({ error: error.message });
     }
   });
@@ -481,6 +506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Document deleted successfully" });
 
     } catch (error: any) {
+      Sentry.captureException(error);
       res.status(500).json({ error: error.message });
     }
   });
