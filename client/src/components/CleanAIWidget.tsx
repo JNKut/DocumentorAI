@@ -60,17 +60,19 @@ export default function CleanAIWidget() {
     }
   });
 
+  const messagesQueryKey = [`/api/conversations/${conversationId}/messages?sessionId=${encodeURIComponent(sessionId)}`];
+
   // Send message
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
       if (!conversationId) throw new Error('No conversation available');
-      
-      const res = await apiRequest('POST', `/api/conversations/${conversationId}/messages`, { content });
+
+      const res = await apiRequest('POST', `/api/conversations/${conversationId}/messages`, { content, sessionId });
       return res.json();
     },
     onSuccess: async (data) => {
       // Force immediate refetch of messages
-      queryClient.invalidateQueries({ queryKey: [`/api/conversations/${conversationId}/messages`] });
+      queryClient.invalidateQueries({ queryKey: messagesQueryKey });
       setTimeout(async () => {
         await refetchMessages();
       }, 1000); // Wait 1s for backend to process AI response
@@ -89,7 +91,7 @@ export default function CleanAIWidget() {
 
   // Get messages - keep them fresh and persistent during session
   const { data: messages, refetch: refetchMessages } = useQuery({
-    queryKey: [`/api/conversations/${conversationId}/messages`],
+    queryKey: messagesQueryKey,
     enabled: !!conversationId,
     staleTime: 0,
     refetchInterval: 2000, // Refetch every 2 seconds to ensure messages stay

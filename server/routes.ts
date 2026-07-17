@@ -6,6 +6,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { promises as fs } from "fs";
 import rateLimit from "express-rate-limit";
+import crypto from "crypto";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { insertDocumentSchema, insertConversationSchema, insertMessageSchema, insertSettingsSchema } from "@shared/schema";
@@ -18,15 +19,39 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }
 });
 
+function timingSafeStringEqual(a: string, b: string): boolean {
+  const hashA = crypto.createHash("sha256").update(a).digest();
+  const hashB = crypto.createHash("sha256").update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
+
+const MAX_ADMIN_ATTEMPTS = 10;
+const ADMIN_LOCKOUT_MS = 15 * 60 * 1000;
+const failedAdminAttempts = new Map<string, { count: number; lockedUntil: number }>();
+
 function requireAdminAuth(req: any, res: any, next: any) {
   const adminPassword = process.env.ADMIN_PASSWORD;
   if (!adminPassword) {
     return res.status(503).json({ error: "ADMIN_PASSWORD not configured" });
   }
+
+  const ip = req.ip;
+  const attempt = failedAdminAttempts.get(ip);
+  if (attempt && attempt.lockedUntil > Date.now()) {
+    return res.status(429).json({ error: "Too many failed login attempts. Try again later." });
+  }
+
   const auth = req.headers.authorization;
-  if (!auth || auth !== `Bearer ${adminPassword}`) {
+  if (!auth || typeof auth !== "string" || !timingSafeStringEqual(auth, `Bearer ${adminPassword}`)) {
+    const count = (attempt?.count ?? 0) + 1;
+    failedAdminAttempts.set(ip, {
+      count,
+      lockedUntil: count >= MAX_ADMIN_ATTEMPTS ? Date.now() + ADMIN_LOCKOUT_MS : 0,
+    });
     return res.status(401).json({ error: "Unauthorized" });
   }
+
+  failedAdminAttempts.delete(ip);
   next();
 }
 
@@ -219,8 +244,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload and process document
-  app.post("/api/documents", uploadLimiter, upload.single('document'), async (req, res) => {
+  // Upload and process document (unused by the current widget/admin UI; auth-gated since it triggers billed OpenAI calls)
+  app.post("/api/documents", uploadLimiter, requireAdminAuth, upload.single('document'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -278,7 +303,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get document info
-  app.get("/api/documents/:id", async (req, res) => {
+  app.get("/api/documents/:id", requireAdminAuth, async (req, res) => {
     try {
       const documentId = parseInt(req.params.id);
       const document = await storage.getDocument(documentId);
@@ -324,16 +349,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/conversations/:id/messages", messageLimiter, async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
-      const { content } = req.body;
+      const { content, sessionId } = req.body;
 
       if (!content || typeof content !== 'string') {
         return res.status(400).json({ error: "Message content is required" });
+      }
+      if (!sessionId || typeof sessionId !== 'string') {
+        return res.status(400).json({ error: "Session ID is required" });
       }
 
       // Get conversation and document
       const conversation = await storage.getConversation(conversationId);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
+      }
+      if (conversation.sessionId !== sessionId) {
+        return res.status(403).json({ error: "Forbidden" });
       }
 
       // Save user message
@@ -420,6 +451,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/conversations/:id/messages", async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
+      const sessionId = req.query.sessionId;
+
+      if (!sessionId || typeof sessionId !== 'string') {
+        return res.status(400).json({ error: "Session ID is required" });
+      }
+
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: "Conversation not found" });
+      }
+      if (conversation.sessionId !== sessionId) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
       const messages = await storage.getConversationMessages(conversationId);
       res.json(messages);
 
@@ -429,7 +474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete document
-  app.delete("/api/documents/:id", async (req, res) => {
+  app.delete("/api/documents/:id", requireAdminAuth, async (req, res) => {
     try {
       const documentId = parseInt(req.params.id);
       await storage.deleteDocument(documentId);
