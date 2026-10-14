@@ -584,6 +584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           companyName: companySettings.companyName,
           companyDescription: companySettings.companyDescription,
           systemPrompt: companySettings.systemPrompt,
+          profile: companySettings.profile,
         } : undefined
       );
 

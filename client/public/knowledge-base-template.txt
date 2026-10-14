@@ -1,0 +1,79 @@
+KNOWLEDGE BASE TEMPLATE
+=======================
+
+How to use this template:
+- Replace everything in [square brackets] with your own information.
+- Delete any section that doesn't apply to your business. A short, accurate file works better than a long one.
+- Write in plain sentences, the way you'd explain it to a new employee. Keep each fact in the section it belongs to.
+- Don't add rules about how the assistant should talk. Answering briefly, staying on topic and pointing people to you when it doesn't know are already built in.
+- Your contact details, hours, location and top FAQs can go in the Business Profile on your admin page instead. The assistant always knows those.
+- Don't include anything private: no passwords, internal pricing, staff phone numbers or customer details.
+- When you're done, save as .txt (or .docx / .pdf) and upload it on your admin page. Delete these instructions first.
+
+
+ABOUT US
+--------
+[Business name] is [what you do, in one or two sentences]. We serve [who your customers are] in [where].
+[Anything customers often ask about you: how long you've been in business, what makes you different.]
+
+
+PRODUCTS AND SERVICES
+---------------------
+[Product or service name]: [what it is, in one sentence]. [Key options such as sizes, colors or packages]. Price: [$ amount, or "quoted on request"].
+
+[Product or service name]: [what it is]. [Options]. Price: [$ amount].
+
+[Add one paragraph per product or service.]
+
+
+PRICING AND PAYMENT
+-------------------
+[Which payment methods you accept.]
+[Deposits, payment plans, discounts, minimum orders or bulk pricing, if any.]
+[Whether prices include tax or delivery.]
+
+
+HOW TO ORDER OR BOOK
+--------------------
+[Step by step: where to go, what the customer needs to provide, and what happens next.]
+[How long it takes to hear back or get a confirmation.]
+
+
+DELIVERY, SHIPPING OR SERVICE AREA
+----------------------------------
+[Where you deliver or travel to, and where you don't.]
+[How long it takes, and what it costs.]
+[Rush or same-day options, if any.]
+
+
+RETURNS, REFUNDS AND CANCELLATIONS
+----------------------------------
+[What can be returned or cancelled, and within how many days.]
+[How to start a return or cancellation.]
+[When and how refunds are paid, and anything that is not refundable.]
+
+
+FREQUENTLY ASKED QUESTIONS
+--------------------------
+Keep each question and its answer together, like this:
+
+Q: [A question customers often ask]
+A: [Your answer]
+
+Q: [Another question]
+A: [Your answer]
+
+Q: [Another question]
+A: [Your answer]
+
+
+POLICIES
+--------
+[Warranty or guarantee.]
+[Age requirements, safety rules, or anything customers must know before buying.]
+[Privacy or other policies customers ask about.]
+
+
+ANYTHING ELSE
+-------------
+[Seasonal information, current promotions, parking, accessibility, or anything else customers ask about.]

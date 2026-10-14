@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { UsageCard, ConversationsCard } from '@/components/AdminActivity';
+import BusinessProfileCard, { withProfileDefaults, type BusinessProfile } from '@/components/BusinessProfileCard';
 
 const STORAGE_KEY = 'admin_token';
 
@@ -46,6 +47,7 @@ export default function AdminPage() {
   const [hexInput, setHexInput] = useState('#2194f3');
   const [kbFile, setKbFile] = useState<File | null>(null);
   const [kbInfo, setKbInfo] = useState<KnowledgeBaseInfo | null>(null);
+  const [profile, setProfile] = useState<BusinessProfile | null>(null);
 
   const { toast } = useToast();
 
@@ -82,6 +84,7 @@ export default function AdminPage() {
       const color = data.primaryColor || '#2194f3';
       setPrimaryColor(color);
       setHexInput(color);
+      setProfile(withProfileDefaults(data.profile));
       setIsAuthenticated(true);
       fetchKnowledgeBase(t);
     } catch {
@@ -107,6 +110,7 @@ export default function AdminPage() {
       const color = data.primaryColor || '#2194f3';
       setPrimaryColor(color);
       setHexInput(color);
+      setProfile(withProfileDefaults(data.profile));
       setIsAuthenticated(true);
       fetchKnowledgeBase(passwordInput);
     } else if (res.status === 429) {
@@ -194,6 +198,15 @@ export default function AdminPage() {
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">AI Widget Admin</h1>
+          <div className="flex items-center gap-2">
+          <a
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50"
+          >
+            Test your assistant ↗
+          </a>
           <Button
             variant="outline"
             size="sm"
@@ -205,6 +218,7 @@ export default function AdminPage() {
           >
             Logout
           </Button>
+          </div>
         </div>
 
         <UsageCard token={token} />
@@ -235,7 +249,7 @@ export default function AdminPage() {
                   placeholder="We sell widgets and provide world-class customer support."
                   rows={3}
                 />
-                <p className="text-xs text-gray-500 mt-1">Injected into the AI system prompt</p>
+                <p className="text-xs text-gray-500 mt-1">A sentence or two about what you do. The assistant always knows this.</p>
               </div>
               <div>
                 <Label htmlFor="widgetGreeting">Widget Greeting</Label>
@@ -248,15 +262,15 @@ export default function AdminPage() {
                 <p className="text-xs text-gray-500 mt-1">First message shown when the widget opens</p>
               </div>
               <div>
-                <Label htmlFor="systemPrompt">System Prompt Override (optional)</Label>
+                <Label htmlFor="systemPrompt">Additional instructions (optional)</Label>
                 <Textarea
                   id="systemPrompt"
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
-                  placeholder="Leave blank to use the default prompt built from company name and description."
+                  placeholder="e.g. Mention our free shipping on orders over $50 when relevant."
                   rows={4}
                 />
-                <p className="text-xs text-gray-500 mt-1">If set, this replaces the auto-generated system prompt entirely</p>
+                <p className="text-xs text-gray-500 mt-1">Added on top of the built-in rules (short answers, stay on topic, no guessing). You don't need to repeat those.</p>
               </div>
               <Button type="submit" disabled={isLoading}>
                 {isLoading ? 'Saving...' : 'Save Settings'}
@@ -264,6 +278,8 @@ export default function AdminPage() {
             </form>
           </CardContent>
         </Card>
+
+        {profile && <BusinessProfileCard token={token} initial={profile} />}
 
         {/* Brand Color */}
         <Card>
@@ -348,6 +364,13 @@ export default function AdminPage() {
             <form onSubmit={handleKbUpload} className="space-y-4">
               <p className="text-sm text-gray-600">
                 Upload a <strong>.txt</strong>, <strong>.pdf</strong>, or <strong>.docx</strong> file (up to 10 MB) containing information about your company — FAQs, product details, policies, etc. The AI will use this as context when answering questions. Uploading a new file replaces the current one.
+              </p>
+              <p className="text-sm text-gray-600">
+                Not sure what to include?{' '}
+                <a href="/knowledge-base-template.txt" download className="underline text-blue-700">
+                  Download the starter template
+                </a>
+                , fill in the sections that apply, and upload it. Stick to facts about your business; how the assistant talks is already built in.
               </p>
               {kbInfo ? (
                 <p className="text-sm text-green-700 bg-green-50 px-3 py-2 rounded">

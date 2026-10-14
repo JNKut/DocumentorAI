@@ -122,6 +122,28 @@ describe("admin API", () => {
     expect(config.body.companyName).toBe("Acme");
   });
 
+  it("validates and stores the business profile, and passes it to the model", async () => {
+    const badTone = await request(app).post("/api/admin/settings").set(admin)
+      .send({ companyName: "Acme", profile: { tone: "rude" } });
+    expect(badTone.status).toBe(400);
+    const tooManyFaqs = await request(app).post("/api/admin/settings").set(admin)
+      .send({ companyName: "Acme", profile: { faqs: Array.from({ length: 13 }, () => ({ q: "q", a: "a" })) } });
+    expect(tooManyFaqs.status).toBe(400);
+
+    const profile = { tone: "friendly", contactEmail: "hi@acme.test", faqs: [{ q: "Minimum order?", a: "None." }] };
+    const saved = await request(app).post("/api/admin/settings").set(admin).send({ companyName: "Acme", profile });
+    expect(saved.status).toBe(200);
+    const loaded = await request(app).get("/api/admin/settings").set(admin);
+    expect(loaded.body.profile).toMatchObject(profile);
+    expect(loaded.body.profile.suggestNextStep).toBe(true);
+
+    const { sessionId, id } = await startConversation();
+    openaiMock.generateChatResponse.mockClear();
+    await request(app).post(`/api/conversations/${id}/messages`).send({ sessionId, content: "hello" });
+    const [, , , settings] = openaiMock.generateChatResponse.mock.calls[0] as any[];
+    expect(settings.profile).toMatchObject(profile);
+  });
+
   it("uploads a knowledge base, replacing the previous one, and uses it in chat", async () => {
     const upload = (text: string, name: string) =>
       request(app).post("/api/admin/knowledge-base").set(admin)

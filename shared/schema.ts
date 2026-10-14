@@ -45,6 +45,28 @@ export const tokenUsage = pgTable("token_usage", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Structured business facts and behaviour options, filled in on the admin
+// page so clients don't have to write a training document from scratch.
+export const TONES = ["professional", "friendly", "casual"] as const;
+
+export const businessProfileSchema = z.object({
+  tone: z.enum(TONES).default("professional"),
+  suggestNextStep: z.boolean().default(true),
+  callToAction: z.string().trim().max(200).default(""),
+  contactEmail: z.string().trim().max(200).default(""),
+  contactPhone: z.string().trim().max(50).default(""),
+  website: z.string().trim().max(200).default(""),
+  hours: z.string().trim().max(300).default(""),
+  location: z.string().trim().max(300).default(""),
+  faqs: z.array(z.object({
+    q: z.string().trim().min(1).max(200),
+    a: z.string().trim().min(1).max(500),
+  })).max(12, "At most 12 FAQs").default([]),
+  avoidTopics: z.string().trim().max(1000).default(""),
+});
+
+export type BusinessProfile = z.infer<typeof businessProfileSchema>;
+
 export const settings = pgTable("settings", {
   id: serial("id").primaryKey(),
   companyName: text("company_name").notNull().default("AI Assistant"),
@@ -52,6 +74,7 @@ export const settings = pgTable("settings", {
   systemPrompt: text("system_prompt").notNull().default(""),
   widgetGreeting: text("widget_greeting").notNull().default("Hi! I'm your AI assistant. How can I help you today?"),
   primaryColor: text("primary_color").notNull().default("#2194f3"),
+  profile: jsonb("profile").$type<Partial<BusinessProfile>>().notNull().default({}),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -98,12 +121,14 @@ export const insertSettingsSchema = createInsertSchema(settings, {
   systemPrompt: (s) => s.max(8000),
   widgetGreeting: (s) => s.max(300),
   primaryColor: (s) => s.regex(/^#[0-9a-fA-F]{6}$/, "Must be a hex color like #2194f3"),
+  profile: () => businessProfileSchema,
 }).pick({
   companyName: true,
   companyDescription: true,
   systemPrompt: true,
   widgetGreeting: true,
   primaryColor: true,
+  profile: true,
 });
 
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;

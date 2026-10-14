@@ -278,11 +278,13 @@ export class MemStorage implements IStorage {
     const existing = this.settingsStore;
     this.settingsStore = {
       id: existing?.id ?? 1,
-      companyName: data.companyName ?? "AI Assistant",
-      companyDescription: data.companyDescription ?? "",
-      systemPrompt: data.systemPrompt ?? "",
-      widgetGreeting: data.widgetGreeting ?? "Hi! I'm your AI assistant. How can I help you today?",
-      primaryColor: data.primaryColor ?? "#2194f3",
+      // Fields left out of a save keep their current value, as in DatabaseStorage
+      companyName: data.companyName ?? existing?.companyName ?? "AI Assistant",
+      companyDescription: data.companyDescription ?? existing?.companyDescription ?? "",
+      systemPrompt: data.systemPrompt ?? existing?.systemPrompt ?? "",
+      widgetGreeting: data.widgetGreeting ?? existing?.widgetGreeting ?? "Hi! I'm your AI assistant. How can I help you today?",
+      primaryColor: data.primaryColor ?? existing?.primaryColor ?? "#2194f3",
+      profile: data.profile ?? existing?.profile ?? {},
       updatedAt: new Date(),
     };
     return this.settingsStore;
