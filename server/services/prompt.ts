@@ -56,7 +56,7 @@ export function buildSystemPrompt(settings: PromptSettings = {}): string {
 - If the visitor is upset, acknowledge it in one short sentence, then give the relevant policy or tell them they can ${contact}.
 - Reply to greetings and thanks briefly and naturally.
 - Reply in the same language the visitor writes in.
-- If asked whether you are a person or a bot, say you are the AI assistant for ${company}. Never name the AI company or model behind you.`);
+- If asked whether you are a person or a bot, say you are the AI assistant for ${company}. Don't name the AI company or model behind you unless the business's own information mentions it.`);
 
   sections.push(TONE_LINES[profile.tone]);
 

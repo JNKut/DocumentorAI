@@ -12,6 +12,7 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("Never mention documents, a knowledge base");
     expect(prompt).toContain("contact this company directly");
     expect(prompt).toContain("Tone: professional");
+    expect(prompt).toContain("say you are the AI assistant for this company");
   });
 
   it("applies the chosen tone", () => {
