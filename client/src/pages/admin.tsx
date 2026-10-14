@@ -8,6 +8,19 @@ import { useToast } from '@/hooks/use-toast';
 
 const STORAGE_KEY = 'admin_token';
 
+interface KnowledgeBaseInfo {
+  originalName: string;
+  size: number;
+  chunks: number;
+  createdAt: string;
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const clean = hex.replace('#', '');
   const int = parseInt(clean, 16);
@@ -31,7 +44,7 @@ export default function AdminPage() {
   const [primaryColor, setPrimaryColor] = useState('#2194f3');
   const [hexInput, setHexInput] = useState('#2194f3');
   const [kbFile, setKbFile] = useState<File | null>(null);
-  const [kbStatus, setKbStatus] = useState('');
+  const [kbInfo, setKbInfo] = useState<KnowledgeBaseInfo | null>(null);
 
   const { toast } = useToast();
 
@@ -40,6 +53,15 @@ export default function AdminPage() {
       fetchSettings(token);
     }
   }, []);
+
+  async function fetchKnowledgeBase(t: string) {
+    try {
+      const res = await fetch('/api/admin/knowledge-base', {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      if (res.ok) setKbInfo(await res.json());
+    } catch {}
+  }
 
   async function fetchSettings(t: string) {
     try {
@@ -60,6 +82,7 @@ export default function AdminPage() {
       setPrimaryColor(color);
       setHexInput(color);
       setIsAuthenticated(true);
+      fetchKnowledgeBase(t);
     } catch {
       toast({ title: 'Failed to load settings', variant: 'destructive' });
     }
@@ -84,6 +107,9 @@ export default function AdminPage() {
       setPrimaryColor(color);
       setHexInput(color);
       setIsAuthenticated(true);
+      fetchKnowledgeBase(passwordInput);
+    } else if (res.status === 429) {
+      toast({ title: 'Too many failed attempts. Try again in 15 minutes.', variant: 'destructive' });
     } else {
       toast({ title: 'Incorrect password', variant: 'destructive' });
     }
@@ -104,7 +130,8 @@ export default function AdminPage() {
     if (res.ok) {
       toast({ title: 'Settings saved' });
     } else {
-      toast({ title: 'Failed to save settings', variant: 'destructive' });
+      const err = await res.json().catch(() => ({}));
+      toast({ title: 'Failed to save settings', description: err.error, variant: 'destructive' });
     }
   }
 
@@ -122,11 +149,11 @@ export default function AdminPage() {
     setIsLoading(false);
     if (res.ok) {
       const data = await res.json();
-      setKbStatus(`Uploaded: ${data.originalName} (${data.chunks} chunks)`);
+      setKbInfo({ originalName: data.originalName, size: data.size, chunks: data.chunks, createdAt: data.createdAt });
       setKbFile(null);
       toast({ title: 'Knowledge base updated' });
     } else {
-      const err = await res.json();
+      const err = await res.json().catch(() => ({}));
       toast({ title: err.error || 'Upload failed', variant: 'destructive' });
     }
   }
@@ -317,10 +344,16 @@ export default function AdminPage() {
           <CardContent>
             <form onSubmit={handleKbUpload} className="space-y-4">
               <p className="text-sm text-gray-600">
-                Upload a <strong>.txt</strong>, <strong>.pdf</strong>, or <strong>.docx</strong> file containing information about your company — FAQs, product details, policies, etc. The AI will use this as context when answering questions.
+                Upload a <strong>.txt</strong>, <strong>.pdf</strong>, or <strong>.docx</strong> file (up to 10 MB) containing information about your company — FAQs, product details, policies, etc. The AI will use this as context when answering questions. Uploading a new file replaces the current one.
               </p>
-              {kbStatus && (
-                <p className="text-sm text-green-700 bg-green-50 px-3 py-2 rounded">{kbStatus}</p>
+              {kbInfo ? (
+                <p className="text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
+                  Current: <strong>{kbInfo.originalName}</strong> ({formatBytes(kbInfo.size)}, {kbInfo.chunks} sections), uploaded {new Date(kbInfo.createdAt).toLocaleString()}
+                </p>
+              ) : (
+                <p className="text-sm text-amber-800 bg-amber-50 px-3 py-2 rounded">
+                  No knowledge base uploaded yet. The assistant has nothing to answer from until you upload one.
+                </p>
               )}
               <div>
                 <Label htmlFor="kbFile">Upload File</Label>

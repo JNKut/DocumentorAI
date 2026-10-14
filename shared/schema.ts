@@ -92,7 +92,13 @@ export type Conversation = typeof conversations.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
 
-export const insertSettingsSchema = createInsertSchema(settings).pick({
+export const insertSettingsSchema = createInsertSchema(settings, {
+  companyName: (s) => s.max(100),
+  companyDescription: (s) => s.max(2000),
+  systemPrompt: (s) => s.max(8000),
+  widgetGreeting: (s) => s.max(300),
+  primaryColor: (s) => s.regex(/^#[0-9a-fA-F]{6}$/, "Must be a hex color like #2194f3"),
+}).pick({
   companyName: true,
   companyDescription: true,
   systemPrompt: true,

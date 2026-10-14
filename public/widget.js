@@ -1,54 +1,72 @@
 (function() {
   // AI Chat Widget Embed Script
-  
-  function createWidget(options = {}) {
-    const defaults = {
+  //
+  // The iframe is only as large as what it shows: launcher-sized while closed,
+  // chat-window-sized while open (full screen on phones). The widget inside
+  // tells us which state it is in via postMessage. A transparent iframe still
+  // swallows clicks, so keeping it small leaves the host page usable.
+
+  var CLOSED_SIZE = 96; // 64px launcher + 16px margin on each side
+  var MOBILE_QUERY = '(max-width: 768px)';
+
+  function createWidget(options) {
+    var defaults = {
       apiUrl: (window.location.origin === 'null' || !window.location.origin) ? 'http://localhost:3000' : window.location.origin,
       position: 'bottom-right',
       width: '400px',
       height: '600px',
       zIndex: 9999
     };
-    
-    const config = Object.assign(defaults, options);
-    
-    // Create iframe
-    const iframe = document.createElement('iframe');
-    iframe.src = config.apiUrl + '/widget';
-    iframe.style.cssText = `
-      border: none;
-      position: fixed;
-      ${config.position.includes('bottom') ? 'bottom: 0;' : 'top: 0;'}
-      ${config.position.includes('right') ? 'right: 0;' : 'left: 0;'}
-      width: ${config.width};
-      height: ${config.height};
-      z-index: ${config.zIndex};
-      background: transparent;
-      transition: opacity 0.3s ease;
-    `;
-    iframe.title = 'AI Chat Widget';
+
+    var config = Object.assign({}, defaults, options || {});
+    if (!config.apiUrl) config.apiUrl = defaults.apiUrl;
+    var apiOrigin = new URL(config.apiUrl, window.location.href).origin;
+    var isOpen = false;
+
+    var iframe = document.createElement('iframe');
+    iframe.src = config.apiUrl.replace(/\/$/, '') + '/widget';
+    iframe.title = 'Chat assistant';
     iframe.id = 'ai-chat-widget';
-    
-    // Add responsive styles for mobile
-    const style = document.createElement('style');
-    style.textContent = `
-      @media (max-width: 768px) {
-        #ai-chat-widget {
-          width: 100vw !important;
-          height: 100vh !important;
-          top: 0 !important;
-          left: 0 !important;
-          right: auto !important;
-          bottom: auto !important;
-          border-radius: 0 !important;
-        }
+    iframe.setAttribute('allowtransparency', 'true');
+    iframe.style.cssText = [
+      'border: none',
+      'position: fixed',
+      config.position.indexOf('top') !== -1 ? 'top: 0' : 'bottom: 0',
+      config.position.indexOf('left') !== -1 ? 'left: 0' : 'right: 0',
+      'z-index: ' + config.zIndex,
+      'background: transparent',
+      'color-scheme: normal'
+    ].join(';');
+
+    function applySize() {
+      if (!isOpen) {
+        iframe.style.width = CLOSED_SIZE + 'px';
+        iframe.style.height = CLOSED_SIZE + 'px';
+      } else if (window.matchMedia(MOBILE_QUERY).matches) {
+        iframe.style.width = '100vw';
+        iframe.style.height = '100vh';
+        iframe.style.height = '100dvh'; // ignored by browsers without dvh support
+      } else {
+        iframe.style.width = 'min(' + config.width + ', 100vw)';
+        iframe.style.height = 'min(' + config.height + ', 100vh)';
       }
-    `;
-    document.head.appendChild(style);
-    
-    // Add to page
+    }
+
+    function onMessage(event) {
+      if (event.source !== iframe.contentWindow || event.origin !== apiOrigin) return;
+      var data = event.data;
+      if (!data || data.source !== 'documentorai') return;
+      if (data.type === 'open' || data.type === 'close') {
+        isOpen = data.type === 'open';
+        applySize();
+      }
+    }
+
+    applySize();
+    window.addEventListener('message', onMessage);
+    window.addEventListener('resize', applySize);
     document.body.appendChild(iframe);
-    
+
     return {
       show: function() {
         iframe.style.display = 'block';
@@ -57,20 +75,22 @@
         iframe.style.display = 'none';
       },
       remove: function() {
+        window.removeEventListener('message', onMessage);
+        window.removeEventListener('resize', applySize);
         iframe.remove();
-        style.remove();
       }
     };
   }
-  
+
   // Auto-initialize if data attributes are present
   function autoInit() {
-    const scripts = document.querySelectorAll('script[src*="widget.js"]');
-    const script = scripts[scripts.length - 1];
-    
+    if (document.getElementById('ai-chat-widget')) return; // script included twice
+
+    var scripts = document.querySelectorAll('script[src*="widget.js"]');
+    var script = scripts[scripts.length - 1];
+
     if (script && script.dataset.autoInit !== 'false') {
-      const scriptSrc = script.src;
-      const scriptOrigin = scriptSrc ? new URL(scriptSrc).origin : null;
+      var scriptOrigin = script.src ? new URL(script.src).origin : null;
       createWidget({
         apiUrl: script.dataset.apiUrl || scriptOrigin || undefined,
         position: script.dataset.position || 'bottom-right',
@@ -79,13 +99,13 @@
       });
     }
   }
-  
+
   // Expose global API
   window.AIWidget = {
     create: createWidget,
     init: createWidget // Alias
   };
-  
+
   // Auto-initialize on DOM ready
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', autoInit);

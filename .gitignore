@@ -5,3 +5,6 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+uploads/
+# Local notes that contain real credentials
+session-summary.md

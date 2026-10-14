@@ -6,34 +6,41 @@ import pdfParse from 'pdf-parse/lib/pdf-parse.js';
 import mammoth from 'mammoth';
 
 export function chunkText(text: string, chunkSize: number = 1000, overlap: number = 200): string[] {
-  const chunks: string[] = [];
-  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-  
-  let currentChunk = '';
-  let currentSize = 0;
-  
-  for (const sentence of sentences) {
-    const sentenceLength = sentence.trim().length;
-    
-    if (currentSize + sentenceLength > chunkSize && currentChunk.trim().length > 0) {
-      chunks.push(currentChunk.trim());
-      
-      // Handle overlap
-      const words = currentChunk.split(' ');
-      const overlapWords = words.slice(-Math.floor(overlap / 6)); // Approximate word overlap
-      currentChunk = overlapWords.join(' ') + ' ' + sentence.trim();
-      currentSize = currentChunk.length;
-    } else {
-      currentChunk += (currentChunk ? '. ' : '') + sentence.trim();
-      currentSize = currentChunk.length;
+  const normalized = text.replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').trim();
+  if (!normalized) return [];
+
+  // Split after sentence-ending punctuation followed by whitespace (or at
+  // paragraph breaks), keeping the punctuation, so "$49.99" and URLs survive.
+  const sentences: string[] = [];
+  for (const piece of normalized.split(/(?<=[.!?])\s+|\n{2,}/)) {
+    const sentence = piece.replace(/\s+/g, ' ').trim();
+    // Hard-split anything longer than a chunk (e.g. text with no punctuation)
+    for (let i = 0; i < sentence.length; i += chunkSize) {
+      sentences.push(sentence.slice(i, i + chunkSize));
     }
   }
-  
-  if (currentChunk.trim().length > 0) {
-    chunks.push(currentChunk.trim());
+
+  const chunks: string[] = [];
+  let currentChunk = '';
+
+  for (const sentence of sentences) {
+    if (currentChunk && currentChunk.length + 1 + sentence.length > chunkSize) {
+      chunks.push(currentChunk);
+
+      // Carry the tail of the previous chunk over, starting on a word boundary
+      const tail = currentChunk.slice(-overlap);
+      const firstSpace = tail.indexOf(' ');
+      currentChunk = (firstSpace >= 0 ? tail.slice(firstSpace + 1) : tail) + ' ' + sentence;
+    } else {
+      currentChunk = currentChunk ? currentChunk + ' ' + sentence : sentence;
+    }
   }
-  
-  return chunks.filter(chunk => chunk.length > 50); // Filter out very small chunks
+
+  if (currentChunk) {
+    chunks.push(currentChunk);
+  }
+
+  return chunks;
 }
 
 export async function extractTextFromFile(filePath: string, mimeType: string): Promise<string> {

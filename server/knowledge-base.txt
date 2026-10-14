@@ -1,3 +1,0 @@
-AI Assistant Knowledge Base
-
-This knowledge base is empty. Please configure it from the /admin page by uploading a document with information about your company, products, services, FAQs, and any other details you want the AI assistant to know about.

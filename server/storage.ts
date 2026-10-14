@@ -9,11 +9,12 @@ import {
 } from "@shared/schema";
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { eq, gte, sql } from 'drizzle-orm';
+import { eq, gte, ne, desc, sql } from 'drizzle-orm';
 
 // Published OpenAI pricing, USD per token. Verify against platform.openai.com/pricing if costs look off.
 const PRICING: Record<string, { input: number; output: number }> = {
   'gpt-4o': { input: 2.50 / 1_000_000, output: 10.00 / 1_000_000 },
+  'gpt-4o-mini': { input: 0.15 / 1_000_000, output: 0.60 / 1_000_000 },
   'text-embedding-3-small': { input: 0.02 / 1_000_000, output: 0 },
 };
 
@@ -61,8 +62,10 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   
   getDocument(id: number): Promise<Document | undefined>;
+  getLatestDocument(): Promise<Document | undefined>;
   createDocument(document: InsertDocument & { chunks: string[]; embeddings: number[][] }): Promise<Document>;
   deleteDocument(id: number): Promise<void>;
+  deleteDocumentsExcept(id: number): Promise<void>;
   
   getConversation(id: number): Promise<Conversation | undefined>;
   getConversationBySession(sessionId: string): Promise<Conversation | undefined>;
@@ -76,6 +79,7 @@ export interface IStorage {
   upsertSettings(data: InsertSettings): Promise<Settings>;
 
   recordTokenUsage(entry: RecordTokenUsage): Promise<void>;
+  openaiCostSince(d: Date): Promise<number>;
   getAnalytics(): Promise<AnalyticsData>;
 }
 
@@ -124,6 +128,16 @@ export class MemStorage implements IStorage {
 
   async getDocument(id: number): Promise<Document | undefined> {
     return this.documents.get(id);
+  }
+
+  async getLatestDocument(): Promise<Document | undefined> {
+    return Array.from(this.documents.values()).sort((a, b) => b.id - a.id)[0];
+  }
+
+  async deleteDocumentsExcept(id: number): Promise<void> {
+    for (const docId of Array.from(this.documents.keys())) {
+      if (docId !== id) await this.deleteDocument(docId);
+    }
   }
 
   async createDocument(insertDocument: InsertDocument & { chunks: string[]; embeddings: number[][] }): Promise<Document> {
@@ -231,7 +245,7 @@ export class MemStorage implements IStorage {
     });
   }
 
-  private openaiCostSince(d: Date): number {
+  async openaiCostSince(d: Date): Promise<number> {
     const byModel = new Map<string, { prompt: number; completion: number }>();
     for (const u of this.tokenUsageLog) {
       if (u.createdAt < d) continue;
@@ -296,10 +310,10 @@ export class MemStorage implements IStorage {
       recentConversations: recentConvs,
       costs: {
         openai: {
-          today: this.openaiCostSince(startOfToday),
-          thisWeek: this.openaiCostSince(startOfWeek),
-          thisMonth: this.openaiCostSince(startOfMonth),
-          allTime: this.openaiCostSince(new Date(0)),
+          today: await this.openaiCostSince(startOfToday),
+          thisWeek: await this.openaiCostSince(startOfWeek),
+          thisMonth: await this.openaiCostSince(startOfMonth),
+          allTime: await this.openaiCostSince(new Date(0)),
         },
       },
     };
@@ -344,8 +358,20 @@ export class DatabaseStorage implements IStorage {
     return result[0];
   }
 
+  async getLatestDocument(): Promise<Document | undefined> {
+    const result = await this.db.select().from(documents).orderBy(desc(documents.id)).limit(1);
+    return result[0];
+  }
+
   async deleteDocument(id: number): Promise<void> {
+    // Detach conversations first so the foreign key doesn't block the delete
+    await this.db.update(conversations).set({ documentId: null }).where(eq(conversations.documentId, id));
     await this.db.delete(documents).where(eq(documents.id, id));
+  }
+
+  async deleteDocumentsExcept(id: number): Promise<void> {
+    await this.db.update(conversations).set({ documentId: null }).where(ne(conversations.documentId, id));
+    await this.db.delete(documents).where(ne(documents.id, id));
   }
 
   async getConversation(id: number): Promise<Conversation | undefined> {
@@ -354,7 +380,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getConversationBySession(sessionId: string): Promise<Conversation | undefined> {
-    const result = await this.db.select().from(conversations).where(eq(conversations.sessionId, sessionId)).limit(1);
+    const result = await this.db.select().from(conversations).where(eq(conversations.sessionId, sessionId)).orderBy(conversations.id).limit(1);
     return result[0];
   }
 
@@ -374,13 +400,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createMessage(insertMessage: InsertMessage): Promise<Message> {
-    const messageData: InsertMessage = {
+    const result = await this.db.insert(messages).values({
       content: insertMessage.content,
       conversationId: insertMessage.conversationId,
       role: insertMessage.role as "user" | "assistant",
       sourceChunks: Array.isArray(insertMessage.sourceChunks) ? insertMessage.sourceChunks as string[] : null
-    };
-    const result = await this.db.insert(messages).values(messageData).returning();
+    }).returning();
     return result[0];
   }
 
@@ -411,7 +436,7 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  private async openaiCostSince(d: Date): Promise<number> {
+  async openaiCostSince(d: Date): Promise<number> {
     const rows = await this.db.select({
       model: tokenUsage.model,
       promptTokens: sql<number>`coalesce(sum(${tokenUsage.promptTokens}), 0)::int`,
@@ -498,6 +523,12 @@ export class DatabaseStorage implements IStorage {
 }
 
 // Use database storage in production, memory storage in development
-export const storage = process.env.NODE_ENV === 'production' 
-  ? new DatabaseStorage() 
+if (process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL) {
+  throw new Error('DATABASE_URL must be set in production');
+}
+if (process.env.NODE_ENV !== 'production') {
+  console.warn('Using in-memory storage (NODE_ENV is not "production"); data will be lost on restart.');
+}
+export const storage = process.env.NODE_ENV === 'production'
+  ? new DatabaseStorage()
   : new MemStorage();

@@ -23,7 +23,7 @@ export default function WidgetOnlyPage() {
         className="w-full h-screen overflow-hidden pointer-events-none"
         style={{ backgroundColor: 'transparent' }}
       >
-        <CleanAIWidget />
+        <CleanAIWidget embedded />
       </div>
     </>
   );

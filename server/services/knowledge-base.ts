@@ -1,64 +1,51 @@
-import { promises as fs } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { chunkText } from './document-processor';
-import { generateEmbeddings } from './openai';
+import type { Document } from '@shared/schema';
 import { storage } from '../storage';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+export interface KnowledgeBase {
+  id: number;
+  originalName: string;
+  size: number;
+  createdAt: Date;
+  chunks: string[];
+  embeddings: number[][];
+}
 
-let knowledgeBaseId: number | null = null;
+// The active knowledge base is the most recently uploaded document. It is
+// loaded from storage on first use (so it survives restarts and deploys) and
+// cached in memory so chat requests don't re-read the embeddings every time.
+let cached: KnowledgeBase | null = null;
+let loaded = false;
+let loading: Promise<KnowledgeBase | null> | null = null;
 
-export async function initializeKnowledgeBase(forceReload: boolean = false): Promise<void> {
-  try {
-    // Check if knowledge base already exists and we're not forcing reload
-    if (knowledgeBaseId && !forceReload) return;
+function toKnowledgeBase(doc: Document): KnowledgeBase {
+  return {
+    id: doc.id,
+    originalName: doc.originalName,
+    size: doc.size,
+    createdAt: doc.createdAt,
+    chunks: doc.chunks,
+    embeddings: doc.embeddings,
+  };
+}
 
-    // Read the knowledge base file
-    const knowledgeBasePath = path.join(__dirname, '../knowledge-base.txt');
-    const content = await fs.readFile(knowledgeBasePath, 'utf-8');
-    
-    // Process the knowledge base
-    const chunks = chunkText(content);
-    const embeddings = await generateEmbeddings(chunks);
-    
-    // If reloading, delete the old document first
-    if (knowledgeBaseId && forceReload) {
-      try {
-        await storage.deleteDocument(knowledgeBaseId);
-      } catch (error) {
-        console.warn('Could not delete old knowledge base:', error);
-      }
-    }
-    
-    // Store as a document
-    const document = await storage.createDocument({
-      filename: 'knowledge-base.txt',
-      originalName: 'AI Assistant Knowledge Base',
-      mimeType: 'text/plain',
-      size: content.length,
-      content,
-      chunks,
-      embeddings
-    });
-    
-    knowledgeBaseId = document.id;
-    console.log(`Knowledge base ${forceReload ? 'reloaded' : 'initialized'} with ID: ${knowledgeBaseId}`);
-  } catch (error) {
-    console.error('Failed to initialize knowledge base:', error);
+export async function getKnowledgeBase(): Promise<KnowledgeBase | null> {
+  if (loaded) return cached;
+  if (!loading) {
+    loading = storage.getLatestDocument()
+      .then(doc => {
+        // An upload may have landed while this read was in flight; keep it
+        if (!loaded) {
+          cached = doc ? toKnowledgeBase(doc) : null;
+          loaded = true;
+        }
+        return cached;
+      })
+      .finally(() => { loading = null; });
   }
+  return loading;
 }
 
-export function getKnowledgeBaseId(): number | null {
-  return knowledgeBaseId;
-}
-
-export function setKnowledgeBaseId(id: number): void {
-  knowledgeBaseId = id;
-}
-
-export async function reloadKnowledgeBase(): Promise<void> {
-  console.log('Reloading knowledge base...');
-  await initializeKnowledgeBase(true);
+export function setKnowledgeBase(doc: Document): void {
+  cached = toKnowledgeBase(doc);
+  loaded = true;
 }

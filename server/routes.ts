@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Response } from "express";
 import { createServer, type Server } from "http";
 import * as Sentry from "@sentry/node";
 import { storage } from "./storage";
@@ -8,16 +8,83 @@ import { fileURLToPath } from "url";
 import { promises as fs } from "fs";
 import rateLimit from "express-rate-limit";
 import crypto from "crypto";
+import { z } from "zod";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-import { insertDocumentSchema, insertConversationSchema, insertMessageSchema, insertSettingsSchema } from "@shared/schema";
+import { insertSettingsSchema, type Message } from "@shared/schema";
 import { extractTextFromFile, chunkText, validateFileUpload } from "./services/document-processor";
 import { generateEmbeddings, generateChatResponse, findRelevantChunks } from "./services/openai";
-import { getKnowledgeBaseId } from "./services/knowledge-base";
+import { getKnowledgeBase, setKnowledgeBase } from "./services/knowledge-base";
 
 const upload = multer({
   dest: 'uploads/',
   limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+// Abuse limits for the public chat endpoints
+const MAX_MESSAGE_CHARS = 2000;
+const MAX_HISTORY_MESSAGE_CHARS = 2000;
+const MAX_MESSAGES_PER_CONVERSATION = 100;
+const MAX_KB_CHUNKS = 1000;
+
+// Daily OpenAI spend ceiling for this deployment, in USD
+const DAILY_OPENAI_BUDGET_USD = (() => {
+  const v = parseFloat(process.env.DAILY_OPENAI_BUDGET_USD ?? "");
+  return Number.isFinite(v) && v >= 0 ? v : 1;
+})();
+const BUDGET_CHECK_INTERVAL_MS = 60 * 1000;
+const BUDGET_EXCEEDED_REPLY =
+  "Sorry, our assistant is temporarily unavailable. Please try again later or contact us directly.";
+
+let budgetCache: { checkedAt: number; spentToday: number } | null = null;
+let budgetAlertSentFor: string | null = null;
+
+function startOfToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+async function isOverDailyBudget(): Promise<boolean> {
+  if (!budgetCache || Date.now() - budgetCache.checkedAt > BUDGET_CHECK_INTERVAL_MS) {
+    budgetCache = { checkedAt: Date.now(), spentToday: await storage.openaiCostSince(startOfToday()) };
+  }
+  const over = budgetCache.spentToday >= DAILY_OPENAI_BUDGET_USD;
+  const today = startOfToday().toDateString();
+  if (over && budgetAlertSentFor !== today) {
+    budgetAlertSentFor = today;
+    Sentry.captureMessage(
+      `Daily OpenAI budget of $${DAILY_OPENAI_BUDGET_USD} reached ($${budgetCache.spentToday.toFixed(4)} spent); chat replies paused until tomorrow`,
+      "warning",
+    );
+    console.warn(`Daily OpenAI budget reached: $${budgetCache.spentToday.toFixed(4)} / $${DAILY_OPENAI_BUDGET_USD}`);
+  }
+  return over;
+}
+
+// Log the real error, send the client something generic
+function sendServerError(res: Response, error: unknown) {
+  Sentry.captureException(error);
+  console.error(error);
+  res.status(500).json({ error: "Something went wrong. Please try again." });
+}
+
+// Public message shape; internal fields like sourceChunks stay server-side
+function publicMessage(m: Message) {
+  return { id: m.id, role: m.role, content: m.content, createdAt: m.createdAt };
+}
+
+function parseId(value: string): number | null {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+const conversationBodySchema = z.object({
+  sessionId: z.string().min(8).max(100),
+});
+
+const messageBodySchema = z.object({
+  sessionId: z.string().min(8).max(100),
+  content: z.string().trim().min(1, "Message content is required").max(MAX_MESSAGE_CHARS, `Messages are limited to ${MAX_MESSAGE_CHARS} characters`),
 });
 
 function timingSafeStringEqual(a: string, b: string): boolean {
@@ -28,7 +95,8 @@ function timingSafeStringEqual(a: string, b: string): boolean {
 
 const MAX_ADMIN_ATTEMPTS = 10;
 const ADMIN_LOCKOUT_MS = 15 * 60 * 1000;
-const failedAdminAttempts = new Map<string, { count: number; lockedUntil: number }>();
+const MAX_TRACKED_IPS = 10_000;
+const failedAdminAttempts = new Map<string, { count: number; firstAt: number; lockedUntil: number }>();
 
 function requireAdminAuth(req: any, res: any, next: any) {
   const adminPassword = process.env.ADMIN_PASSWORD;
@@ -37,17 +105,25 @@ function requireAdminAuth(req: any, res: any, next: any) {
   }
 
   const ip = req.ip;
-  const attempt = failedAdminAttempts.get(ip);
-  if (attempt && attempt.lockedUntil > Date.now()) {
+  const now = Date.now();
+  let attempt = failedAdminAttempts.get(ip);
+  if (attempt && attempt.lockedUntil > now) {
     return res.status(429).json({ error: "Too many failed login attempts. Try again later." });
+  }
+  // Forget old failures once the lockout or the counting window has passed
+  if (attempt && (attempt.lockedUntil > 0 || now - attempt.firstAt > ADMIN_LOCKOUT_MS)) {
+    failedAdminAttempts.delete(ip);
+    attempt = undefined;
   }
 
   const auth = req.headers.authorization;
   if (!auth || typeof auth !== "string" || !timingSafeStringEqual(auth, `Bearer ${adminPassword}`)) {
+    if (failedAdminAttempts.size >= MAX_TRACKED_IPS) failedAdminAttempts.clear();
     const count = (attempt?.count ?? 0) + 1;
     failedAdminAttempts.set(ip, {
       count,
-      lockedUntil: count >= MAX_ADMIN_ATTEMPTS ? Date.now() + ADMIN_LOCKOUT_MS : 0,
+      firstAt: attempt?.firstAt ?? now,
+      lockedUntil: count >= MAX_ADMIN_ATTEMPTS ? now + ADMIN_LOCKOUT_MS : 0,
     });
     return res.status(401).json({ error: "Unauthorized" });
   }
@@ -65,13 +141,31 @@ const generalLimiter = rateLimit({
   message: { error: "Too many requests, please try again later." },
 });
 
-// Strict limit for the OpenAI chat endpoint
+// Strict per-IP limit for the OpenAI chat endpoint
 const messageLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many messages sent, please slow down and try again in a minute." },
+});
+
+// Limit across all IPs, so rotating IPs can't multiply the per-IP limit
+const globalMessageLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  keyGenerator: () => "global",
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "The assistant is very busy right now. Please try again in a minute." },
+});
+
+const conversationLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." },
 });
 
 // Strict limit for document upload endpoints (trigger embedding generation)
@@ -84,6 +178,11 @@ const uploadLimiter = rateLimit({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Liveness check for Railway / uptime monitors; touches nothing billable
+  app.get("/healthz", (_req, res) => {
+    res.json({ ok: true });
+  });
+
   app.use("/api", generalLimiter);
 
 
@@ -92,7 +191,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const widgetScript = path.resolve(__dirname, "..", "public", "widget.js");
       const script = await fs.readFile(widgetScript, "utf-8");
-      res.status(200).set({ "Content-Type": "application/javascript" }).end(script);
+      res.status(200).set({
+        "Content-Type": "application/javascript",
+        "Cache-Control": "public, max-age=300",
+      }).end(script);
     } catch (error: any) {
       console.error('Error serving widget script:', error);
       res.status(500).send('// Error loading widget script');
@@ -109,26 +211,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Chat Widget</title>
     <style>
-        body { 
-            margin: 0; 
-            padding: 0; 
-            overflow: hidden; 
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
             background: transparent;
         }
-        #widget-container { 
-            width: 100vw; 
-            height: 100vh; 
+        #widget-container {
+            width: 100vw;
+            height: 100vh;
             background: transparent;
         }
     </style>
 </head>
 <body>
     <div id="widget-container">
-        <iframe 
-            src="/widget" 
-            width="100%" 
-            height="100%" 
+        <iframe
+            src="/widget"
+            width="100%"
+            height="100%"
             style="border: none; background: transparent;"
             title="AI Chat Interface">
         </iframe>
@@ -136,18 +238,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     <script>
         // Widget ready notification
         if (window.parent !== window) {
-            window.parent.postMessage({ 
-                type: 'WIDGET_READY', 
-                source: 'ai-widget' 
+            window.parent.postMessage({
+                type: 'WIDGET_READY',
+                source: 'ai-widget'
             }, '*');
         }
     </script>
 </body>
 </html>`;
-    
+
     res.status(200).set({ "Content-Type": "text/html" }).end(embedHtml);
   });
-  
+
   // Public widget config endpoint (company name + greeting for the chat widget)
   app.get("/api/widget/config", async (req, res) => {
     try {
@@ -157,9 +259,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         widgetGreeting: s?.widgetGreeting || "Hi! I'm your AI assistant. How can I help you today?",
         primaryColor: s?.primaryColor || "#2194f3",
       });
-    } catch (error: any) {
-      Sentry.captureException(error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      sendServerError(res, error);
     }
   });
 
@@ -191,9 +292,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const analytics = await storage.getAnalytics();
       res.json(analytics);
-    } catch (error: any) {
-      Sentry.captureException(error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      sendServerError(res, error);
     }
   });
 
@@ -207,24 +307,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         systemPrompt: "",
         widgetGreeting: "Hi! I'm your AI assistant. How can I help you today?",
       });
-    } catch (error: any) {
-      Sentry.captureException(error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      sendServerError(res, error);
     }
   });
 
   // Admin: save settings
   app.post("/api/admin/settings", requireAdminAuth, async (req, res) => {
+    const parsed = insertSettingsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      return res.status(400).json({ error: `${issue.path.join(".")}: ${issue.message}` });
+    }
     try {
-      const data = insertSettingsSchema.parse(req.body);
-      const saved = await storage.upsertSettings(data);
+      const saved = await storage.upsertSettings(parsed.data);
       res.json(saved);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
+    } catch (error) {
+      sendServerError(res, error);
     }
   });
 
-  // Admin: upload knowledge base file
+  // Admin: current knowledge base info
+  app.get("/api/admin/knowledge-base", requireAdminAuth, async (req, res) => {
+    try {
+      const kb = await getKnowledgeBase();
+      res.json(kb ? {
+        originalName: kb.originalName,
+        size: kb.size,
+        chunks: kb.chunks.length,
+        createdAt: kb.createdAt,
+      } : null);
+    } catch (error) {
+      sendServerError(res, error);
+    }
+  });
+
+  // Admin: upload knowledge base file (replaces the previous one)
   app.post("/api/admin/knowledge-base", uploadLimiter, requireAdminAuth, upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
@@ -237,6 +355,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const textContent = await extractTextFromFile(req.file.path, req.file.mimetype);
       const chunks = chunkText(textContent);
+      if (chunks.length === 0) {
+        await fs.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({ error: "No usable text found in this file." });
+      }
+      if (chunks.length > MAX_KB_CHUNKS) {
+        await fs.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({
+          error: `This file is too large for the knowledge base (${chunks.length} sections, limit ${MAX_KB_CHUNKS}, roughly 800 KB of text). Trim it or keep the most important content.`,
+        });
+      }
       const embeddings = await generateEmbeddings(chunks);
       const document = await storage.createDocument({
         filename: req.file.filename,
@@ -248,140 +376,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
         embeddings,
       });
       await fs.unlink(req.file.path).catch(() => {});
-      // Update the knowledge base pointer
-      const { setKnowledgeBaseId } = await import("./services/knowledge-base");
-      setKnowledgeBaseId(document.id);
+      setKnowledgeBase(document);
+      // Only one knowledge base is active; drop the ones it replaces
+      await storage.deleteDocumentsExcept(document.id).catch(err => {
+        Sentry.captureException(err);
+        console.error("Failed to delete previous knowledge base documents:", err);
+      });
       res.json({
         id: document.id,
         originalName: document.originalName,
+        size: document.size,
         chunks: chunks.length,
+        createdAt: document.createdAt,
         message: "Knowledge base updated successfully",
       });
     } catch (error: any) {
       Sentry.captureException(error);
+      console.error(error);
       if (req.file) await fs.unlink(req.file.path).catch(() => {});
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Upload and process document (unused by the current widget/admin UI; auth-gated since it triggers billed OpenAI calls)
-  app.post("/api/documents", uploadLimiter, requireAdminAuth, upload.single('document'), async (req, res) => {
-    try {
-      if (!req.file) {
-        return res.status(400).json({ error: "No file uploaded" });
-      }
-
-      const validation = validateFileUpload(req.file);
-      if (!validation.valid) {
-        // Clean up uploaded file
-        await fs.unlink(req.file.path).catch(() => {});
-        return res.status(400).json({ error: validation.error });
-      }
-
-      // Extract text content
-      const textContent = await extractTextFromFile(req.file.path, req.file.mimetype);
-      
-      // Chunk the text
-      const chunks = chunkText(textContent);
-      
-      // Generate embeddings for chunks
-      const embeddings = await generateEmbeddings(chunks);
-
-      // Create document record
-      const documentData = {
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        content: textContent,
-      };
-
-      const document = await storage.createDocument({
-        ...documentData,
-        chunks,
-        embeddings
-      });
-
-      // Clean up uploaded file
-      await fs.unlink(req.file.path).catch(() => {});
-
-      res.json({
-        id: document.id,
-        originalName: document.originalName,
-        size: document.size,
-        chunks: chunks.length,
-        message: "Document processed successfully"
-      });
-
-    } catch (error) {
-      Sentry.captureException(error);
-      // Clean up uploaded file on error
-      if (req.file) {
-        await fs.unlink(req.file.path).catch(() => {});
-      }
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
-    }
-  });
-
-  // Get document info
-  app.get("/api/documents/:id", requireAdminAuth, async (req, res) => {
-    try {
-      const documentId = parseInt(req.params.id);
-      const document = await storage.getDocument(documentId);
-
-      if (!document) {
-        return res.status(404).json({ error: "Document not found" });
-      }
-
-      res.json({
-        id: document.id,
-        originalName: document.originalName,
-        size: document.size,
-        chunks: document.chunks.length,
-        createdAt: document.createdAt
-      });
-
-    } catch (error: any) {
-      Sentry.captureException(error);
-      res.status(500).json({ error: error.message });
+      // Admin-only route, so the real reason (e.g. a scanned PDF) is useful here
+      res.status(500).json({ error: error?.message || "Upload failed" });
     }
   });
 
   // Create or get conversation
-  app.post("/api/conversations", async (req, res) => {
+  app.post("/api/conversations", conversationLimiter, async (req, res) => {
+    const parsed = conversationBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "A valid session ID is required" });
+    }
     try {
-      const validatedData = insertConversationSchema.parse(req.body);
-      
-      // Check if conversation already exists for this session
-      const existingConversation = await storage.getConversationBySession(validatedData.sessionId);
-      
+      const { sessionId } = parsed.data;
+      const existingConversation = await storage.getConversationBySession(sessionId);
       if (existingConversation) {
-        return res.json(existingConversation);
+        return res.json({ id: existingConversation.id });
       }
 
-      const conversation = await storage.createConversation(validatedData);
-      res.json(conversation);
-
-    } catch (error: any) {
-      Sentry.captureException(error);
-      res.status(500).json({ error: error.message });
+      const conversation = await storage.createConversation({ sessionId });
+      res.json({ id: conversation.id });
+    } catch (error) {
+      sendServerError(res, error);
     }
   });
 
   // Send message and get AI response
-  app.post("/api/conversations/:id/messages", messageLimiter, async (req, res) => {
+  app.post("/api/conversations/:id/messages", messageLimiter, globalMessageLimiter, async (req, res) => {
+    const conversationId = parseId(req.params.id);
+    if (!conversationId) {
+      return res.status(400).json({ error: "Invalid conversation ID" });
+    }
+    const parsed = messageBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0].message });
+    }
+    const { content, sessionId } = parsed.data;
+
     try {
-      const conversationId = parseInt(req.params.id);
-      const { content, sessionId } = req.body;
-
-      if (!content || typeof content !== 'string') {
-        return res.status(400).json({ error: "Message content is required" });
-      }
-      if (!sessionId || typeof sessionId !== 'string') {
-        return res.status(400).json({ error: "Session ID is required" });
-      }
-
-      // Get conversation and document
       const conversation = await storage.getConversation(conversationId);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
@@ -390,7 +440,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ error: "Forbidden" });
       }
 
-      // Save user message
+      const previousMessages = await storage.getConversationMessages(conversationId);
+      if (previousMessages.length >= MAX_MESSAGES_PER_CONVERSATION) {
+        return res.status(429).json({
+          error: "This conversation has reached its length limit. Starting a new one.",
+          code: "conversation_limit",
+        });
+      }
+
       const userMessage = await storage.createMessage({
         conversationId,
         role: "user",
@@ -398,47 +455,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sourceChunks: []
       });
 
-      // Get conversation history
-      const messages = await storage.getConversationMessages(conversationId);
-      const conversationHistory = messages.slice(-6).map(msg => ({
+      if (await isOverDailyBudget()) {
+        const aiMessage = await storage.createMessage({
+          conversationId,
+          role: "assistant",
+          content: BUDGET_EXCEEDED_REPLY,
+          sourceChunks: []
+        });
+        return res.json({ userMessage: publicMessage(userMessage), aiMessage: publicMessage(aiMessage) });
+      }
+
+      // Prior turns only; the current message is sent separately with its context
+      const conversationHistory = previousMessages.slice(-6).map(msg => ({
         role: msg.role,
-        content: msg.content
+        content: msg.content.slice(0, MAX_HISTORY_MESSAGE_CHARS)
       }));
 
       let relevantChunks: string[] = [];
-      let aiResponse: string;
-
-      // Always use knowledge base for context
-      const knowledgeBaseId = getKnowledgeBaseId();
-      if (knowledgeBaseId) {
-        const knowledgeBase = await storage.getDocument(knowledgeBaseId);
-        if (knowledgeBase) {
-          relevantChunks = await findRelevantChunks(
-            content,
-            knowledgeBase.chunks,
-            knowledgeBase.embeddings,
-            3 // Use more chunks for better context
-          );
-        }
+      const knowledgeBase = await getKnowledgeBase();
+      if (knowledgeBase) {
+        relevantChunks = await findRelevantChunks(
+          content,
+          knowledgeBase.chunks,
+          knowledgeBase.embeddings,
+          3
+        );
       }
 
-      // Also check if there's a user-specific document
-      if (conversation.documentId) {
-        const document = await storage.getDocument(conversation.documentId);
-        if (document) {
-          const docChunks = await findRelevantChunks(
-            content,
-            document.chunks,
-            document.embeddings
-          );
-          relevantChunks = [...relevantChunks, ...docChunks];
-        }
-      }
-
-      // Load company settings for system prompt
       const companySettings = await storage.getSettings();
 
-      // Generate AI response
       const { response, sourceChunks } = await generateChatResponse(
         content,
         relevantChunks,
@@ -450,37 +495,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } : undefined
       );
 
-      aiResponse = response;
-
-      // Save AI message
       const aiMessage = await storage.createMessage({
         conversationId,
         role: "assistant",
-        content: aiResponse,
+        content: response,
         sourceChunks
       });
 
       res.json({
-        userMessage,
-        aiMessage
+        userMessage: publicMessage(userMessage),
+        aiMessage: publicMessage(aiMessage)
       });
 
-    } catch (error: any) {
-      Sentry.captureException(error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      sendServerError(res, error);
     }
   });
 
   // Get conversation messages
   app.get("/api/conversations/:id/messages", async (req, res) => {
+    const conversationId = parseId(req.params.id);
+    if (!conversationId) {
+      return res.status(400).json({ error: "Invalid conversation ID" });
+    }
+    const sessionId = req.query.sessionId;
+    if (!sessionId || typeof sessionId !== 'string') {
+      return res.status(400).json({ error: "Session ID is required" });
+    }
+
     try {
-      const conversationId = parseInt(req.params.id);
-      const sessionId = req.query.sessionId;
-
-      if (!sessionId || typeof sessionId !== 'string') {
-        return res.status(400).json({ error: "Session ID is required" });
-      }
-
       const conversation = await storage.getConversation(conversationId);
       if (!conversation) {
         return res.status(404).json({ error: "Conversation not found" });
@@ -490,24 +533,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const messages = await storage.getConversationMessages(conversationId);
-      res.json(messages);
+      res.json(messages.map(publicMessage));
 
-    } catch (error: any) {
-      Sentry.captureException(error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Delete document
-  app.delete("/api/documents/:id", requireAdminAuth, async (req, res) => {
-    try {
-      const documentId = parseInt(req.params.id);
-      await storage.deleteDocument(documentId);
-      res.json({ message: "Document deleted successfully" });
-
-    } catch (error: any) {
-      Sentry.captureException(error);
-      res.status(500).json({ error: error.message });
+    } catch (error) {
+      sendServerError(res, error);
     }
   });
 
