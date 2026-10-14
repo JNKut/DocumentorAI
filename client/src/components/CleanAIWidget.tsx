@@ -348,7 +348,8 @@ export default function CleanAIWidget({ embedded = false }: CleanAIWidgetProps) 
           </div>
 
           {/* Watermark */}
-          <div className="py-0.5 text-center border-t border-gray-100">
+          <div className="py-0.5 text-center border-t border-gray-100 text-[9px] text-gray-400">
+            AI assistant · may make mistakes ·{' '}
             <a
               href="https://documentorai.org"
               target="_blank"

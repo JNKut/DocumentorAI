@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { UsageCard, ConversationsCard } from '@/components/AdminActivity';
 
 const STORAGE_KEY = 'admin_token';
 
@@ -206,6 +207,8 @@ export default function AdminPage() {
           </Button>
         </div>
 
+        <UsageCard token={token} />
+
         {/* Company Settings */}
         <Card>
           <CardHeader>
@@ -348,7 +351,7 @@ export default function AdminPage() {
               </p>
               {kbInfo ? (
                 <p className="text-sm text-green-700 bg-green-50 px-3 py-2 rounded">
-                  Current: <strong>{kbInfo.originalName}</strong> ({formatBytes(kbInfo.size)}, {kbInfo.chunks} sections), uploaded {new Date(kbInfo.createdAt).toLocaleString()}
+                  Current: <strong>{kbInfo.originalName}</strong> ({formatBytes(kbInfo.size)}, {kbInfo.chunks} section{kbInfo.chunks === 1 ? "" : "s"}), uploaded {new Date(kbInfo.createdAt).toLocaleString()}
                 </p>
               ) : (
                 <p className="text-sm text-amber-800 bg-amber-50 px-3 py-2 rounded">
@@ -370,6 +373,8 @@ export default function AdminPage() {
             </form>
           </CardContent>
         </Card>
+
+        <ConversationsCard token={token} />
       </div>
     </div>
   );

@@ -9,7 +9,7 @@ import {
 } from "@shared/schema";
 import { drizzle } from 'drizzle-orm/neon-http';
 import { neon } from '@neondatabase/serverless';
-import { eq, gte, ne, desc, sql } from 'drizzle-orm';
+import { and, eq, gte, ne, desc, sql } from 'drizzle-orm';
 
 // Published OpenAI pricing, USD per token. Verify against platform.openai.com/pricing if costs look off.
 const PRICING: Record<string, { input: number; output: number }> = {
@@ -56,6 +56,16 @@ export interface AnalyticsData {
   };
 }
 
+export interface ConversationSummary {
+  id: number;
+  createdAt: string;
+  lastMessageAt: string;
+  messageCount: number;
+  preview: string;
+}
+
+const PREVIEW_CHARS = 120;
+
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -66,10 +76,16 @@ export interface IStorage {
   createDocument(document: InsertDocument & { chunks: string[]; embeddings: number[][] }): Promise<Document>;
   deleteDocument(id: number): Promise<void>;
   deleteDocumentsExcept(id: number): Promise<void>;
+  updateDocumentChunks(id: number, chunks: string[], embeddings: number[][]): Promise<void>;
   
   getConversation(id: number): Promise<Conversation | undefined>;
   getConversationBySession(sessionId: string): Promise<Conversation | undefined>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
+  // Conversations with at least one message, most recently active first
+  listConversations(limit: number, offset: number): Promise<{ items: ConversationSummary[]; total: number }>;
+  deleteConversation(id: number): Promise<void>;
+  // Conversations in which a visitor sent a message since the given date
+  countActiveConversationsSince(d: Date): Promise<number>;
   
   getMessage(id: number): Promise<Message | undefined>;
   getConversationMessages(conversationId: number): Promise<Message[]>;
@@ -140,6 +156,11 @@ export class MemStorage implements IStorage {
     }
   }
 
+  async updateDocumentChunks(id: number, chunks: string[], embeddings: number[][]): Promise<void> {
+    const doc = this.documents.get(id);
+    if (doc) this.documents.set(id, { ...doc, chunks, embeddings });
+  }
+
   async createDocument(insertDocument: InsertDocument & { chunks: string[]; embeddings: number[][] }): Promise<Document> {
     const id = this.currentDocumentId++;
     const document: Document = {
@@ -190,6 +211,40 @@ export class MemStorage implements IStorage {
     };
     this.conversations.set(id, conversation);
     return conversation;
+  }
+
+  async listConversations(limit: number, offset: number): Promise<{ items: ConversationSummary[]; total: number }> {
+    const summaries: ConversationSummary[] = [];
+    for (const conv of Array.from(this.conversations.values())) {
+      const msgs = Array.from(this.messages.values())
+        .filter(m => m.conversationId === conv.id)
+        .sort((a, b) => a.id - b.id);
+      if (msgs.length === 0) continue;
+      summaries.push({
+        id: conv.id,
+        createdAt: conv.createdAt.toISOString(),
+        lastMessageAt: msgs[msgs.length - 1].createdAt.toISOString(),
+        messageCount: msgs.length,
+        preview: (msgs.find(m => m.role === 'user')?.content ?? '').slice(0, PREVIEW_CHARS),
+      });
+    }
+    summaries.sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt) || b.id - a.id);
+    return { items: summaries.slice(offset, offset + limit), total: summaries.length };
+  }
+
+  async deleteConversation(id: number): Promise<void> {
+    for (const msg of Array.from(this.messages.values())) {
+      if (msg.conversationId === id) this.messages.delete(msg.id);
+    }
+    this.conversations.delete(id);
+  }
+
+  async countActiveConversationsSince(d: Date): Promise<number> {
+    const ids = new Set<number>();
+    for (const msg of Array.from(this.messages.values())) {
+      if (msg.role === 'user' && msg.createdAt >= d) ids.add(msg.conversationId);
+    }
+    return ids.size;
   }
 
   async getMessage(id: number): Promise<Message | undefined> {
@@ -374,6 +429,10 @@ export class DatabaseStorage implements IStorage {
     await this.db.delete(documents).where(ne(documents.id, id));
   }
 
+  async updateDocumentChunks(id: number, chunks: string[], embeddings: number[][]): Promise<void> {
+    await this.db.update(documents).set({ chunks, embeddings }).where(eq(documents.id, id));
+  }
+
   async getConversation(id: number): Promise<Conversation | undefined> {
     const result = await this.db.select().from(conversations).where(eq(conversations.id, id)).limit(1);
     return result[0];
@@ -387,6 +446,48 @@ export class DatabaseStorage implements IStorage {
   async createConversation(insertConversation: InsertConversation): Promise<Conversation> {
     const result = await this.db.insert(conversations).values(insertConversation).returning();
     return result[0];
+  }
+
+  async listConversations(limit: number, offset: number): Promise<{ items: ConversationSummary[]; total: number }> {
+    const rows = await this.db.execute(sql`
+      SELECT c.id, c.created_at,
+        MAX(m.created_at) AS last_message_at,
+        COUNT(m.id)::int AS message_count,
+        (SELECT LEFT(um.content, ${PREVIEW_CHARS}) FROM messages um
+          WHERE um.conversation_id = c.id AND um.role = 'user'
+          ORDER BY um.id LIMIT 1) AS preview
+      FROM conversations c
+      JOIN messages m ON m.conversation_id = c.id
+      GROUP BY c.id, c.created_at
+      ORDER BY MAX(m.created_at) DESC, c.id DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `);
+    const [total] = await this.db
+      .select({ count: sql<number>`count(distinct ${messages.conversationId})::int` })
+      .from(messages);
+    return {
+      items: (rows.rows as any[]).map(r => ({
+        id: r.id,
+        createdAt: new Date(r.created_at).toISOString(),
+        lastMessageAt: new Date(r.last_message_at).toISOString(),
+        messageCount: r.message_count,
+        preview: r.preview ?? '',
+      })),
+      total: total.count,
+    };
+  }
+
+  async deleteConversation(id: number): Promise<void> {
+    await this.db.delete(messages).where(eq(messages.conversationId, id));
+    await this.db.delete(conversations).where(eq(conversations.id, id));
+  }
+
+  async countActiveConversationsSince(d: Date): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(distinct ${messages.conversationId})::int` })
+      .from(messages)
+      .where(and(eq(messages.role, 'user'), gte(messages.createdAt, d)));
+    return row.count;
   }
 
   async getMessage(id: number): Promise<Message | undefined> {

@@ -28,9 +28,10 @@ export function chunkText(text: string, chunkSize: number = 1000, overlap: numbe
       chunks.push(currentChunk);
 
       // Carry the tail of the previous chunk over, starting on a word boundary
-      const tail = currentChunk.slice(-overlap);
+      const tail = overlap > 0 ? currentChunk.slice(-overlap) : '';
       const firstSpace = tail.indexOf(' ');
-      currentChunk = (firstSpace >= 0 ? tail.slice(firstSpace + 1) : tail) + ' ' + sentence;
+      const carried = firstSpace >= 0 ? tail.slice(firstSpace + 1) : tail;
+      currentChunk = carried ? carried + ' ' + sentence : sentence;
     } else {
       currentChunk = currentChunk ? currentChunk + ' ' + sentence : sentence;
     }

@@ -36,12 +36,45 @@ const BUDGET_CHECK_INTERVAL_MS = 60 * 1000;
 const BUDGET_EXCEEDED_REPLY =
   "Sorry, our assistant is temporarily unavailable. Please try again later or contact us directly.";
 
+// Plan allowance (e.g. 500 for Starter). Soft limit: chat keeps working and
+// Jonah gets a Sentry warning at 80% and 100% so he can suggest an upgrade.
+const MONTHLY_CONVERSATION_LIMIT = (() => {
+  const v = parseInt(process.env.MONTHLY_CONVERSATION_LIMIT ?? "", 10);
+  return Number.isFinite(v) && v > 0 ? v : null;
+})();
+const USAGE_ALERT_THRESHOLDS = [0.8, 1];
+const usageAlertsSent = new Set<string>(); // `${month}:${threshold}`
+
+const ADMIN_CONVERSATIONS_PAGE_SIZE = 20;
+
 let budgetCache: { checkedAt: number; spentToday: number } | null = null;
 let budgetAlertSentFor: string | null = null;
 
 function startOfToday(): Date {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function startOfMonth(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+async function checkMonthlyUsage(): Promise<void> {
+  if (!MONTHLY_CONVERSATION_LIMIT) return;
+  const used = await storage.countActiveConversationsSince(startOfMonth());
+  const month = startOfMonth().toISOString().slice(0, 7);
+  for (const threshold of USAGE_ALERT_THRESHOLDS) {
+    const key = `${month}:${threshold}`;
+    if (used >= MONTHLY_CONVERSATION_LIMIT * threshold && !usageAlertsSent.has(key)) {
+      usageAlertsSent.add(key);
+      Sentry.captureMessage(
+        `Conversation allowance ${Math.round(threshold * 100)}% used: ${used} of ${MONTHLY_CONVERSATION_LIMIT} this month`,
+        "warning",
+      );
+      console.warn(`Monthly conversations: ${used} of ${MONTHLY_CONVERSATION_LIMIT}`);
+    }
+  }
 }
 
 async function isOverDailyBudget(): Promise<boolean> {
@@ -327,6 +360,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Admin: this month's usage against plan limits
+  app.get("/api/admin/usage", requireAdminAuth, async (req, res) => {
+    try {
+      res.json({
+        conversationsThisMonth: await storage.countActiveConversationsSince(startOfMonth()),
+        monthlyConversationLimit: MONTHLY_CONVERSATION_LIMIT,
+        openaiCostToday: await storage.openaiCostSince(startOfToday()),
+        dailyOpenaiBudget: DAILY_OPENAI_BUDGET_USD,
+      });
+    } catch (error) {
+      sendServerError(res, error);
+    }
+  });
+
+  // Admin: conversation transcripts
+  app.get("/api/admin/conversations", requireAdminAuth, async (req, res) => {
+    const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+    try {
+      const { items, total } = await storage.listConversations(
+        ADMIN_CONVERSATIONS_PAGE_SIZE,
+        (page - 1) * ADMIN_CONVERSATIONS_PAGE_SIZE,
+      );
+      res.json({ items, total, page, pageSize: ADMIN_CONVERSATIONS_PAGE_SIZE });
+    } catch (error) {
+      sendServerError(res, error);
+    }
+  });
+
+  app.get("/api/admin/conversations/:id/messages", requireAdminAuth, async (req, res) => {
+    const conversationId = parseId(req.params.id);
+    if (!conversationId) {
+      return res.status(400).json({ error: "Invalid conversation ID" });
+    }
+    try {
+      const messages = await storage.getConversationMessages(conversationId);
+      res.json(messages.map(publicMessage));
+    } catch (error) {
+      sendServerError(res, error);
+    }
+  });
+
+  app.delete("/api/admin/conversations/:id", requireAdminAuth, async (req, res) => {
+    const conversationId = parseId(req.params.id);
+    if (!conversationId) {
+      return res.status(400).json({ error: "Invalid conversation ID" });
+    }
+    try {
+      await storage.deleteConversation(conversationId);
+      res.json({ ok: true });
+    } catch (error) {
+      sendServerError(res, error);
+    }
+  });
+
   // Admin: current knowledge base info
   app.get("/api/admin/knowledge-base", requireAdminAuth, async (req, res) => {
     try {
@@ -454,6 +541,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         content,
         sourceChunks: []
       });
+
+      // A conversation counts toward the monthly allowance at its first visitor message
+      if (!previousMessages.some(m => m.role === "user")) {
+        checkMonthlyUsage().catch(err => Sentry.captureException(err));
+      }
 
       if (await isOverDailyBudget()) {
         const aiMessage = await storage.createMessage({

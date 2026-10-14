@@ -18,6 +18,23 @@ app.use(
     crossOriginEmbedderPolicy: false,
   })
 );
+// Optionally restrict which sites may embed this deployment's widget, so
+// another site can't put a client's bot (and its OpenAI budget) on its pages.
+// Comma-separated origins, e.g. "https://acme.com,https://www.acme.com".
+const widgetAllowedOrigins = (process.env.WIDGET_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map(o => o.trim())
+  .filter(o => /^https?:\/\/[^\s;,'"]+$/.test(o));
+if (widgetAllowedOrigins.length > 0) {
+  const policy = `frame-ancestors 'self' ${widgetAllowedOrigins.join(" ")}`;
+  app.use((req, res, next) => {
+    if (req.path === "/widget" || req.path === "/widget/") {
+      res.setHeader("Content-Security-Policy", policy);
+    }
+    next();
+  });
+}
+
 app.use(express.json({ limit: "50kb" }));
 app.use(express.urlencoded({ extended: false, limit: "50kb" }));
 
