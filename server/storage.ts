@@ -18,9 +18,23 @@ const PRICING: Record<string, { input: number; output: number }> = {
   'text-embedding-3-small': { input: 0.02 / 1_000_000, output: 0 },
 };
 
-function costForModel(model: string, promptTokens: number, completionTokens: number): number {
-  const rate = PRICING[model];
-  if (!rate) return 0;
+// A model missing from PRICING is costed at the highest known rates, so the
+// daily budget can't be silently disabled by switching OPENAI_CHAT_MODEL.
+const FALLBACK_RATE = {
+  input: Math.max(...Object.values(PRICING).map(r => r.input)),
+  output: Math.max(...Object.values(PRICING).map(r => r.output)),
+};
+const warnedModels = new Set<string>();
+
+export function costForModel(model: string, promptTokens: number, completionTokens: number): number {
+  let rate = PRICING[model];
+  if (!rate) {
+    if (!warnedModels.has(model)) {
+      warnedModels.add(model);
+      console.warn(`No price for model "${model}" in PRICING; costing it at the highest known rates. Add its real price in server/storage.ts.`);
+    }
+    rate = FALLBACK_RATE;
+  }
   return promptTokens * rate.input + completionTokens * rate.output;
 }
 

@@ -6,7 +6,7 @@ import multer from "multer";
 import path from "path";
 import { fileURLToPath } from "url";
 import { promises as fs } from "fs";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import crypto from "crypto";
 import { z } from "zod";
 
@@ -15,6 +15,7 @@ import { insertSettingsSchema, type Message } from "@shared/schema";
 import { extractTextFromFile, chunkText, validateFileUpload } from "./services/document-processor";
 import { generateEmbeddings, generateChatResponse, findRelevantChunks } from "./services/openai";
 import { getKnowledgeBase, setKnowledgeBase } from "./services/knowledge-base";
+import { getClientIp } from "./client-ip";
 
 const upload = multer({
   dest: 'uploads/',
@@ -137,7 +138,7 @@ function requireAdminAuth(req: any, res: any, next: any) {
     return res.status(503).json({ error: "ADMIN_PASSWORD not configured" });
   }
 
-  const ip = req.ip;
+  const ip = getClientIp(req);
   const now = Date.now();
   let attempt = failedAdminAttempts.get(ip);
   if (attempt && attempt.lockedUntil > now) {
@@ -165,8 +166,12 @@ function requireAdminAuth(req: any, res: any, next: any) {
   next();
 }
 
+// Per-IP limiters key on getClientIp (see client-ip.ts) rather than req.ip
+const perIpKey = (req: any) => ipKeyGenerator(getClientIp(req));
+
 // Backstop limit for all /api/* routes
 const generalLimiter = rateLimit({
+  keyGenerator: perIpKey,
   windowMs: 60 * 1000,
   max: 100,
   standardHeaders: true,
@@ -176,6 +181,7 @@ const generalLimiter = rateLimit({
 
 // Strict per-IP limit for the OpenAI chat endpoint
 const messageLimiter = rateLimit({
+  keyGenerator: perIpKey,
   windowMs: 60 * 1000,
   max: 20,
   standardHeaders: true,
@@ -194,6 +200,7 @@ const globalMessageLimiter = rateLimit({
 });
 
 const conversationLimiter = rateLimit({
+  keyGenerator: perIpKey,
   windowMs: 60 * 1000,
   max: 10,
   standardHeaders: true,
@@ -203,6 +210,7 @@ const conversationLimiter = rateLimit({
 
 // Strict limit for document upload endpoints (trigger embedding generation)
 const uploadLimiter = rateLimit({
+  keyGenerator: perIpKey,
   windowMs: 60 * 1000,
   max: 5,
   standardHeaders: true,
@@ -358,6 +366,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       sendServerError(res, error);
     }
+  });
+
+  // Admin: how the server sees the caller's IP, for checking rate-limit keying
+  // behind a proxy. Only shows the caller's own request.
+  app.get("/api/admin/whoami", requireAdminAuth, (req, res) => {
+    const h = req.headers;
+    res.json({
+      clientIp: getClientIp(req),
+      reqIp: req.ip,
+      socket: req.socket.remoteAddress,
+      headers: {
+        "x-forwarded-for": h["x-forwarded-for"] ?? null,
+        "x-real-ip": h["x-real-ip"] ?? null,
+        "x-envoy-external-address": h["x-envoy-external-address"] ?? null,
+        forwarded: h["forwarded"] ?? null,
+        "cf-connecting-ip": h["cf-connecting-ip"] ?? null,
+      },
+    });
   });
 
   // Admin: this month's usage against plan limits

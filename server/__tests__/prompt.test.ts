@@ -76,3 +76,13 @@ describe("buildReferenceMessage", () => {
     expect(msg).toContain("don't mention that these excerpts exist");
   });
 });
+
+describe("costForModel", () => {
+  it("prices known models and never treats an unknown model as free", async () => {
+    const { costForModel } = await import("../storage");
+    expect(costForModel("gpt-4o-mini", 1_000_000, 1_000_000)).toBeCloseTo(0.75);
+    expect(costForModel("gpt-4o", 1_000_000, 0)).toBeCloseTo(2.5);
+    // Unknown models are costed at the highest known rates (gpt-4o here)
+    expect(costForModel("some-new-model", 1_000_000, 1_000_000)).toBeCloseTo(12.5);
+  });
+});
